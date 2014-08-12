@@ -1,6 +1,8 @@
 
 #include "image.h"
 #include "pnm.h"
+#include "ifs.h"
+#include "vec3.h"
 
 #include <vector>
 #include <string>
@@ -11,7 +13,7 @@ namespace po = boost::program_options;
 int main(int ac, char* av[])
 {
     Image inpano;
-    
+    IFS::IFS< 
 
     std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
 
@@ -43,7 +45,7 @@ int main(int ac, char* av[])
         if (vm.count("ig"))
         {
             // load pnm image
-            PNM::loadPNM(vm["im"].as<std::string>());
+            
         }
 
 
