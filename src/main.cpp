@@ -11,6 +11,7 @@ namespace po = boost::program_options;
 int main(int ac, char* av[])
 {
     Image inpano;
+    
 
     std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
 
