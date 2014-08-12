@@ -242,7 +242,7 @@ int main(int ac, char* av[])
         const Image &img = projection.img();
         std::cout << "input image is " << img.width() << " x " << img.height() << " pixels." << std::endl;
         std::cout << "input geometry consists of " << ingeometry.vertices.size() << " vertices and " << ingeometry.faces.size() << " faces." << std::endl;
-
+        std::cout << "using a resolution of " << resolution << "mm/pixel" << std::endl;
         // TODO: 
         // - input E57 image to read in pose (position / orientation)
         // - model position and orientation of pano
