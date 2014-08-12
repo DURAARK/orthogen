@@ -4,13 +4,16 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <string>
+#include <iterator>
 
 namespace IFS
 {
   template <class IFSVERTEX>
   struct IFS
   {
-     typedef unsigned int IFSINDEX;
+      typedef IFSVERTEX IFSVTYPE;
+      typedef unsigned int IFSINDEX;
 
      typedef std::vector< IFSVERTEX > IFSVCONTAINER;
      typedef std::map< IFSVERTEX, IFSINDEX > INDEXMAP;
@@ -21,6 +24,8 @@ namespace IFS
      IFSVCONTAINER vertices;
      IFSFCONTAINER faces;
      INDEXMAP      indexmap;
+
+     inline bool isValid() const { return !vertices.empty(); }
 
      IFSINDEX vertex2index( const IFSVERTEX &v )
      {
@@ -75,7 +80,7 @@ namespace IFS
          for (IFS_T::IFSFACE::const_iterator it = F->begin(), ite = F->end();
             it != ite; ++it)
          {
-            os << " " << (*it+1);
+            os << " " << (*it+1);   // first element starts with 1!
          }
          os << std::endl;
       }
@@ -89,7 +94,86 @@ namespace IFS
       exportOBJ(os);
    }
 
+
+   void Tokenize(const std::string &str, std::vector<std::string> &tokens,
+                 const std::string &delimiters = " ")
+   {
+       // Skip delimiters at beginning.
+       std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
+       // Find first "non-delimiter".
+       std::string::size_type pos = str.find_first_of(delimiters, lastPos);
+
+       while (std::string::npos != pos || std::string::npos != lastPos)
+       {
+           // Found a token, add it to the vector.
+           tokens.push_back(str.substr(lastPos, pos - lastPos));
+           // Skip delimiters.  Note the "not_of"
+           lastPos = str.find_first_not_of(delimiters, pos);
+           // Find next "non-delimiter"
+           pos = str.find_first_of(delimiters, lastPos);
+       }
+   }
+
+   template< class IFS_T >
+   static IFS_T loadOBJ(std::istream &is)
+   {
+       IFS_T ifs;
+       std::string line;
+
+       while (getline(is, line))
+       {
+           // tokenize
+           std::stringstream strstr(line);
+           std::istream_iterator<std::string> it(strstr);
+           std::istream_iterator<std::string> end;
+           std::vector<std::string> linetoken(it, end);
+           if (!linetoken.empty())
+           {
+               // VERTEX
+               if ((linetoken[0].compare("v") == 0) || (linetoken[0].compare("V") == 0))
+               {
+                   // add vertex
+                   IFS_T::IFSVTYPE vertex;
+                   for (int i = 0; i < 3; ++i)
+                   {
+                       std::istringstream parser(linetoken[i + 1]);
+                       parser >> vertex[i];
+                   }
+                   ifs.vertices.push_back(vertex);
+               }
+               // FACE
+               if ((linetoken[0].compare("f") == 0) || (linetoken[0].compare("F") == 0))
+               {
+                   IFS_T::IFSFACE face;
+                   for (unsigned i = 1; i < linetoken.size(); ++i)
+                   {
+                       // split by '/'
+                       // vertex/texcoord/normal
+                       std::vector< std::string > facevertex;
+                       Tokenize(linetoken[i], facevertex, "/");
+                       std::istringstream parser(facevertex[0]);    // index 0:vertex
+                       unsigned vindex;
+                       parser >> vindex;
+                       face.push_back(vindex-1);    // first element starts with 1!
+                   }
+                   ifs.faces.push_back(face);
+               }
+               // everything else is ignored.
+           }
+       }
+
+       return ifs;
+   }
+
    
+   template< class IFS_T >
+   static IFS_T loadOBJ(const std::string &filename)
+   {
+       std::ifstream is(filename);
+
+       return loadOBJ<IFS_T>(is);
+   }
+
 
    // // export to .SVG (uses only first two dimensions
    // template< class IFS_T >

@@ -23,6 +23,13 @@ namespace PNM
 
     // load image from file
     Image loadPNM(const std::string &filename, const int background=-1);
+
+    // write image to output stream
+    bool writePNM(const Image &img, std::ostream &os);
+
+    // write image to file
+    bool writePNM(const Image &img, const std::string &fname);
+
 } // namespace GLFONT
 
 #endif

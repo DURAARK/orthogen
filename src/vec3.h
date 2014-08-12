@@ -155,12 +155,18 @@ public:
       return true;
    }
 
+   /// euclidean length
+   inline T length() const
+   {
+       T l = 0; 
+       for (int i = 0; i<D; ++i) { l += x[i] * x[i]; }
+       return sqrt(l);
+   }
+
    /// normalize
    inline MathVector & normalize()
    {
-      T l=0;
-      for(int i=0; i<D; ++i) { l+=x[i]*x[i]; }
-      l=sqrt(l);
+      T l = length();
       for(int i=0; i<D; ++i) { x[i]/=l; }
       return *this;
    }
