@@ -3,6 +3,8 @@
 #include "pnm.h"
 #include "ifs.h"
 #include "vec3.h"
+#include "camera.h"
+#include "quaternion.h"
 
 #include <vector>
 #include <string>
@@ -17,23 +19,8 @@ typedef IFS::IFS< Vec3d > myIFS;
 typedef MathVector<unsigned char,3> RGB;    // RGB color value
 #define PI 3.141592653589793238462643
 
-// orthogonal right handed coordinate system
-template <class V>
-struct RHCS      
-{
-private:
-    V x;
-    V y;
-    V z;
-public:
-    // default: x right, y up, z negative view direction
-    RHCS() : x(1.0, 0.0, 0.0), y(0.0, 1.0, 0.0), z(0.0, 0.0, -1.0) {}
 
-    inline void setPose(const V &xx, const V &yy, const V &zz) { x = xx; y = yy; z = zz; }
-    inline V getRight() const { return x; }
-    inline V getUp()    const { return y; }
-    inline V getFron()  const { return z; }
-};
+
 
 // Image Projection allows to rayintersect with an 
 // (panoramic) image taken from a known pose
@@ -48,49 +35,73 @@ public:
 class SphericalPanoramaImageProjection : public ImageProjection
 {
 private:
-    Vec3d C;        // camera center
-    RHCS<Vec3d> cs; // orientation (coordinate system)
+    Camera<double> camera;
     Image pano;
+
 public:
+    Vec2d azimuthRange;
+    Vec2d elevationRange;
 
-    SphericalPanoramaImageProjection() : C(0,0,0)
+    SphericalPanoramaImageProjection() 
+        : azimuthRange(0, 2 * PI), elevationRange(-PI/2,PI/2)
     {
-
     }
 
     inline void setPanoramicImage(const Image &pi) { pano = pi; }
-    inline void setCenter(const Vec3d &center)     { C = center; }
-    inline void setPose(const Vec3d &right, const Vec3d &up, const Vec3d &front) { }
+    inline void setCenter(const Vec3d &center)     { camera.setPosition(center); }
+    inline void setPose(const Vec3d &right, const Vec3d &up, const Vec3d &front) 
+    { 
+        camera.setOrientation(right, up, front);
+    }
 
     inline const Image & img() { return pano; }
 
     inline bool isValid() const { return pano.isValid(); }
-    Vec3d getPosition() { return C; }
+    inline Vec3d getPosition()  { return camera.getPosition(); }
+
+    inline bool applyRotation(Quaterniond &quat)
+    {
+        camera.applyRotation(quat);
+        return true;
+    }
+
+
     RGB   getColorProjection(const Vec3d &pos) const
     {
         // get vector from camera center to position
-        Vec3d ray = pos - C;
+        Vec3d rayWorld = pos - camera.getPosition();
+
+        // transform to camera orientation
+        Vec3d ray = camera.world2cam() * rayWorld;
 
         // normalize vector to get the intersection on the unit sphere
         ray.normalize();
 
         // cartesian to spherical coordinates
-        // pano-x = phi = atan2(y,x) normalized to [0,1]
-        // pano-y = theta = arccos(z/sqrt(x^2+y^2+z^2)) normalized to [-1,1], norm can be neglected 
+        // pano-x = azimuth   = phi   = atan2(y,x) normalized to [0,1]
+        // pano-y = elevation = theta = arccos(z/sqrt(x^2+y^2+z^2)) normalized to [-1,1], norm can be neglected 
         //                                         since (x,y,z) is already normalized
-        double phi = -atan2(ray[1], ray[0]);
+        // physical notation, theta=inclination/elevation=pano-x ,phi = azimuth = pano-y
+        double phi = -atan2(ray[1], ray[0]) + PI;
         if (phi < 0) phi += 2.0*PI;
         phi /= 2.0*PI;
 
-        double theta = acos(ray[2]);
+        double theta = acos(ray[2]) + PI;
         if (theta < 0) theta += 2.0*PI;
         theta /= 2.0*PI;
-        
-        // pano lookup
-        RGB pixel;
-        pixel[0] = pano(phi*pano.width(), theta*pano.height(), 0);
-        pixel[1] = pano(phi*pano.width(), theta*pano.height(), 1);
-        pixel[2] = pano(phi*pano.width(), theta*pano.height(), 2);
+
+        // get relative value to  bounds
+        const double rphi = (phi - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0]);
+        const double rtheta = (theta - elevationRange[0]) / (elevationRange[1] - elevationRange[0]);
+
+        // pano lookup, nearest neighbor for now.. TODO: interpolation
+        RGB pixel(0,0,0);
+        if (rphi >= 0.0 && rphi <= 1.0 && rtheta >= 0.0 && rtheta <= 1.0)
+        {
+            pixel[0] = pano(rphi*pano.width(), rtheta*pano.height(), 0);
+            pixel[1] = pano(rphi*pano.width(), rtheta*pano.height(), 1);
+            pixel[2] = pano(rphi*pano.width(), rtheta*pano.height(), 2);
+        }
         return pixel;
     }
 };
@@ -136,6 +147,14 @@ struct Quad3D
     // resolution is <world units>/pixel
     Image performProjection(const ImageProjection& projection, double resolution) const
     {
+#ifdef WRITE_POINTCLOUD_PER_FACE
+        static int imagecounter = 0;
+        std::ostringstream ss;
+        ss << "cloud_" << imagecounter << ".xyz";
+        std::ofstream pclfile(ss.str());
+        ++imagecounter;
+#endif
+
         // origin is left top
         T W  = V[1] - V[0];
         T H = V[3] - V[0];
@@ -166,6 +185,15 @@ struct Quad3D
                 img(x, y, 0) = color[0];
                 img(x, y, 1) = color[1];
                 img(x, y, 2) = color[2];
+
+#ifdef WRITE_POINTCLOUD_PER_FACE
+                // write pointcloud file
+                std::ostringstream pclpoint;
+                pclpoint << position[0] << " " << position[1] << " " << position[2];
+                pclpoint << " " << (int)color[0] << " " << (int)color[1] << " " << (int)color[2];
+                pclfile << pclpoint.str() << std::endl;
+#endif
+
             }
         }
         
@@ -196,6 +224,9 @@ int main(int ac, char* av[])
             ("im", po::value< std::string >(), "input panoramic image [.PNM]")
             ("ig", po::value< std::string >(), "input geometry [.OBJ]")
             ("res", po::value< double >(), "resolution [mm/pixel]")
+            ("rot", po::value< std::vector<double> >()->multitoken(), "rotation quaternion [x,y,z,w]")
+            ("elmin", po::value< double >(), "elevation min")
+            ("elmax", po::value< double >(), "elevation max")
             ;
 
         po::variables_map vm;        
@@ -230,6 +261,34 @@ int main(int ac, char* av[])
         {
             resolution = vm["res"].as<double>();
         }
+
+        if (vm.count("rot"))
+        {
+            std::vector<double> rot = vm["rot"].as<std::vector<double> >();
+            if (rot.size() == 4)
+            {
+                Quaterniond quaternion(rot[0], rot[1], rot[2], rot[3]);
+                std::cout << " applying quaternion [" << quaternion.a << ","
+                    << quaternion.b << "," << quaternion.c << "," << quaternion.d
+                    << "]" << std::endl;
+                projection.applyRotation(quaternion);
+            }
+            else
+            {
+                std::cout << " --rot Error: quaternion is not composed of 4 values." 
+                          << std::endl;
+            }
+        }
+
+        if (vm.count("elmin"))
+        {
+            projection.elevationRange[0] = vm["elmin"].as<double>();
+        }
+        if (vm.count("elmax"))
+        {
+            projection.elevationRange[1] = vm["elmax"].as<double>();
+        }
+
     }
     catch(std::exception& e) 
     {
@@ -240,6 +299,7 @@ int main(int ac, char* av[])
     if (projection.isValid() && ingeometry.isValid())
     {
         const Image &img = projection.img();
+        //PNM::writePNM(img, "projection.pnm");
         std::cout << "input image is " << img.width() << " x " << img.height() << " pixels." << std::endl;
         std::cout << "input geometry consists of " << ingeometry.vertices.size() << " vertices and " << ingeometry.faces.size() << " faces." << std::endl;
         std::cout << "using a resolution of " << resolution << "mm/pixel" << std::endl;
@@ -261,7 +321,7 @@ int main(int ac, char* av[])
                              ingeometry.vertices[face[2]], 
                              ingeometry.vertices[face[3]]);
                 // raster quad
-                Image orthophoto = quad.performProjection(projection, 1.0);
+                Image orthophoto = quad.performProjection(projection, resolution);
                 {
                     std::ostringstream oss;
                     oss << "ortho_" << faceid << ".pnm";

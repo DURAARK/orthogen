@@ -38,7 +38,16 @@ INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 # Main Project
 #----------------------------------------------------------------------
 SET(SRC_FILES 
-    src/vec3.h src/pnm.h src/pnm.cpp src/ifs.h src/image.h src/main.cpp)
+    src/camera.h
+    src/ifs.h 
+    src/image.h
+    src/main.cpp
+    src/matrix.h
+    src/pnm.cpp 
+    src/pnm.h 
+    src/quaternion.h
+    src/vec3.h 
+    )
     
 ADD_EXECUTABLE(orthogen ${SRC_FILES})
 
