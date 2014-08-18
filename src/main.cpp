@@ -107,7 +107,7 @@ public:
         return Vec3d(
             spc[2] * sin(spc[1]) * cos(spc[0]),
             spc[2] * sin(spc[1]) * sin(spc[0]),
-            spc[2] * cos(spc[1])
+            -spc[2] * cos(spc[1])
         );
     }
 
@@ -127,7 +127,7 @@ public:
     }
     
     // export to textured sphere
-    myIFS exportToIFS(const double r = 1.0, const double numpts = 10)
+    myIFS exportToIFS(const double r = 1.0, const double numpts = 100)
     {
         myIFS result;
         result.useTextureCoordinates = true;
