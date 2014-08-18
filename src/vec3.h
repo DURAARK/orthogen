@@ -89,6 +89,14 @@ public:
       return *this;
    }
 
+   // element-wise multiplication
+   inline MathVector elMul(const MathVector &o) const
+   {
+       MathVector v(*this);
+       for (int i = 0; i<D; ++i) { v.x[i] *= o.x[i]; }
+       return v;
+   }
+
    /// inplace addition
    inline MathVector& operator+=(const MathVector& v)
    { for(int i=0; i<D; ++i) { x[i]+=v.x[i]; } return *this; }

@@ -54,7 +54,7 @@ public:
         camera.setOrientation(right, up, front);
     }
 
-    inline const Image & img() { return pano; }
+    inline const Image & img()  { return pano; }
 
     inline bool isValid() const { return pano.isValid(); }
     inline Vec3d getPosition()  { return camera.getPosition(); }
@@ -77,32 +77,103 @@ public:
         // normalize vector to get the intersection on the unit sphere
         ray.normalize();
 
-        // cartesian to spherical coordinates
         // pano-x = azimuth   = phi   = atan2(y,x) normalized to [0,1]
         // pano-y = elevation = theta = arccos(z/sqrt(x^2+y^2+z^2)) normalized to [-1,1], norm can be neglected 
         //                                         since (x,y,z) is already normalized
         // physical notation, theta=inclination/elevation=pano-x ,phi = azimuth = pano-y
-        double phi = -atan2(ray[1], ray[0]) + PI;
-        if (phi < 0) phi += 2.0*PI;
-        phi /= 2.0*PI;
-
-        double theta = acos(ray[2]) + PI;
-        if (theta < 0) theta += 2.0*PI;
-        theta /= 2.0*PI;
+        Vec3d spherical = cart2spher(ray);
 
         // get relative value to  bounds
-        const double rphi = (phi - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0]);
-        const double rtheta = (theta - elevationRange[0]) / (elevationRange[1] - elevationRange[0]);
+        const double tx = (spherical[0] - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0]);
+        const double ty = (spherical[1] - elevationRange[0]) / (elevationRange[1] - elevationRange[0]);
 
         // pano lookup, nearest neighbor for now.. TODO: interpolation
         RGB pixel(0,0,0);
-        if (rphi >= 0.0 && rphi <= 1.0 && rtheta >= 0.0 && rtheta <= 1.0)
+        if (tx >= 0.0 && tx <= 1.0 && ty >= 0.0 && ty <= 1.0)
         {
-            pixel[0] = pano(rphi*pano.width(), rtheta*pano.height(), 0);
-            pixel[1] = pano(rphi*pano.width(), rtheta*pano.height(), 1);
-            pixel[2] = pano(rphi*pano.width(), rtheta*pano.height(), 2);
+            pixel[0] = pano(tx*pano.width(), ty*pano.height(), 0);
+            pixel[1] = pano(tx*pano.width(), ty*pano.height(), 1);
+            pixel[2] = pano(tx*pano.width(), ty*pano.height(), 2);
         }
         return pixel;
+    }
+
+    // COORDINATE SYSTEM CONVERSIONS
+
+    // cartesian coordinates: Vec3 [ x, y, z ]
+    // spherical coordinates: Vec3 [ azimuth , inclination , radius ]
+    Vec3d spher2cart(const Vec3d &spc) const
+    {    
+        return Vec3d(
+            spc[2] * sin(spc[1]) * cos(spc[0]),
+            spc[2] * sin(spc[1]) * sin(spc[0]),
+            spc[2] * cos(spc[1])
+        );
+    }
+
+    // cartesian to spherical coordinates
+    Vec3d cart2spher(const Vec3d &cart) const
+    {
+        double radius    = cart.length();
+        double inclination = acos(cart[2] / radius);
+        double azimuth   = atan2(cart[1], cart[0]);
+        if (azimuth < 0) azimuth += 2.0*PI;
+
+        assert(inclination >= 0.0 && inclination <= PI);
+        assert(azimuth >= 0.0 && azimuth <= 2.0*PI);
+
+        return Vec3d(azimuth, inclination, radius);
+
+    }
+    
+    // export to textured sphere
+    myIFS exportToIFS(const double r = 1.0, const double numpts = 10)
+    {
+        myIFS result;
+        result.useTextureCoordinates = true;
+
+        const double inclinationStep = (PI / numpts);
+        const double azimuthStep = (2.0*PI / numpts);
+
+        const Vec3d delta1(azimuthStep, 0, 0);
+        const Vec3d delta2(azimuthStep, inclinationStep, 0);
+        const Vec3d delta3(0, inclinationStep, 0);
+
+        const Vec2f txd1(azimuthStep, 0);
+        const Vec2f txd2(azimuthStep, inclinationStep);
+        const Vec2f txd3(0, inclinationStep);
+        const Vec2f txnorm(1.0/(2.0*PI), 1.0/PI);
+
+        // create points on a sphere
+        for (double e = 0; e < PI; e += inclinationStep)
+        {
+            for (double a = 0; a < 2 * PI; a += azimuthStep)
+            {
+                const Vec3d spherical(a, e, r);
+                const Vec2f texcoord(a, e);
+
+                std::set<myIFS::IFSINDEX> face;
+                myIFS::IFSFACE ifsface;
+
+                auto insertVertex = [&face, &ifsface](myIFS::IFSINDEX i)
+                {
+                    face.insert(i);
+                    ifsface.push_back(i);
+                };
+
+                insertVertex(result.vertex2index(spher2cart(spherical), texcoord.elMul(txnorm)));
+                insertVertex(result.vertex2index(spher2cart(spherical + delta1), (texcoord + txd1).elMul(txnorm)));
+                insertVertex(result.vertex2index(spher2cart(spherical + delta2), (texcoord + txd2).elMul(txnorm)));
+                insertVertex(result.vertex2index(spher2cart(spherical + delta3), (texcoord + txd3).elMul(txnorm)));
+                // process only non-degenerated faces
+                if (face.size() == 4)
+                {
+                    result.faces.push_back(ifsface);
+                }
+            }
+        }
+
+        return result;
     }
 };
 
@@ -303,6 +374,12 @@ int main(int ac, char* av[])
         std::cout << "input image is " << img.width() << " x " << img.height() << " pixels." << std::endl;
         std::cout << "input geometry consists of " << ingeometry.vertices.size() << " vertices and " << ingeometry.faces.size() << " faces." << std::endl;
         std::cout << "using a resolution of " << resolution << "mm/pixel" << std::endl;
+        
+        // PROCESS OUTPUT
+        myIFS sphere = projection.exportToIFS(1000.0);
+        IFS::exportOBJ(sphere, "sphere.obj");
+        
+        
         // TODO: 
         // - input E57 image to read in pose (position / orientation)
         // - model position and orientation of pano

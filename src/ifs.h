@@ -7,32 +7,46 @@
 #include <string>
 #include <iterator>
 
+#include "vec3.h"
+
 namespace IFS
 {
   template <class IFSVERTEX>
   struct IFS
   {
-      typedef IFSVERTEX IFSVTYPE;
-      typedef unsigned int IFSINDEX;
+     typedef IFSVERTEX IFSVTYPE;
+     typedef unsigned int IFSINDEX;
 
-     typedef std::vector< IFSVERTEX > IFSVCONTAINER;
+     typedef std::vector< IFSVERTEX > IFSVCONTAINER;    // vertex position
+     typedef std::vector< Vec2f >     IFSTCCONTAINER;   // texture coordinate
+
      typedef std::map< IFSVERTEX, IFSINDEX > INDEXMAP;
 
      typedef std::vector< IFSINDEX > IFSFACE;
      typedef std::vector< IFSFACE > IFSFCONTAINER;
 
      IFSVCONTAINER vertices;
+     IFSTCCONTAINER texcoordinates;
      IFSFCONTAINER faces;
      INDEXMAP      indexmap;
 
+     bool useTextureCoordinates;
+
+     IFS() : useTextureCoordinates(false) {}
+
      inline bool isValid() const { return !vertices.empty(); }
 
-     IFSINDEX vertex2index( const IFSVERTEX &v )
+     IFSINDEX vertex2index( const IFSVERTEX &v, const Vec2f &texCoord=Vec2f(0,0))
      {
         typename INDEXMAP::const_iterator itv = indexmap.find(v);
         if ( itv == indexmap.end())
         {
            vertices.push_back ( v );
+           if (useTextureCoordinates) 
+           {
+               texcoordinates.push_back(texCoord);
+               assert(vertices.size() == texcoordinates.size());
+           }
            indexmap[ v ] = vertices.size() - 1;
            return vertices.size() - 1;
         }
@@ -63,24 +77,34 @@ namespace IFS
   // INPUT/OUTPUT METHODS
   
   template< class IFS_T >
-  static bool exportToOBJ( const IFS_T &ifs, std::ostream &os )
+  static bool exportOBJ( const IFS_T &ifs, std::ostream &os )
   {
+      IFS_T::IFSINDEX vindex = 0;
       for (IFS_T::IFSVCONTAINER::const_iterator 
          V=ifs.vertices.begin(), VE=ifs.vertices.end();
-         V != VE; ++V)
+         V != VE; ++V,++vindex)
       {
          os << "v " << V->x[0] << " " << V->x[1] << " " << V->x[2] << std::endl;
+         if (ifs.useTextureCoordinates)
+         {
+             os << "vt " << ifs.texcoordinates[vindex][0] << " " 
+                         << ifs.texcoordinates[vindex][1] << std::endl;
+         }
       }
       os << std::endl;
       for (IFS_T::IFSFCONTAINER::const_iterator 
-         F=ifs.faces.begin(), ifs.FE=faces.end();
-         F != FE; ++F)
+          F = ifs.faces.begin(), FE = ifs.faces.end();
+          F != FE; ++F)
       {
          os << "f";
          for (IFS_T::IFSFACE::const_iterator it = F->begin(), ite = F->end();
             it != ite; ++it)
          {
-            os << " " << (*it+1);   // first element starts with 1!
+            os << " " << (*it + 1);   // first element starts with 1!
+            if (ifs.useTextureCoordinates)
+            {
+                os << "/" << (*it + 1);
+            }
          }
          os << std::endl;
       }
@@ -91,7 +115,7 @@ namespace IFS
    static bool exportOBJ( const IFS_T &ifs, const std::string &filename)
    {
       std::ofstream os(filename);
-      exportOBJ(os);
+      return exportOBJ(ifs, os);
    }
 
 
