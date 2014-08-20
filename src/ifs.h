@@ -36,6 +36,12 @@ namespace IFS
 
      inline bool isValid() const { return !vertices.empty(); }
 
+     // [] operator yields vertex by index
+     inline const IFSVERTEX & operator[](IFSINDEX index) const
+     {
+         return vertices[index];
+     }
+
      IFSINDEX vertex2index( const IFSVERTEX &v, const Vec2f &texCoord=Vec2f(0,0))
      {
         typename INDEXMAP::const_iterator itv = indexmap.find(v);

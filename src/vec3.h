@@ -300,4 +300,52 @@ MathVector<T,3> inline static RotateVec(
        + axis * (axis*vec) * (1-cos(angle));
  }
 
+
+
+// -------------------------------------------------------
+// greatest common divisor of two and three elements
+// use GCD2,3,4
+
+template< class T >
+inline static T _gcd2(T u, T v)
+{
+    assert(u >= 0);
+    assert(v >= 0);
+    if (u == v) return u;
+    if (u == 0) return v;
+    if (v == 0) return u;
+    if (~u & 1)
+    {
+        if (v & 1) { return _gcd2(u >> 1, v); }
+        else       { return _gcd2(u >> 1, v >> 1) << 1; }
+    }
+    if (~v & 1)   { return _gcd2(u, v >> 1); }
+    if (u > v)    { return _gcd2((u - v) >> 1, v); }
+    return _gcd2((v - u) >> 1, u);
+}
+template< class T >
+inline static T GCD2(T u, T v) {
+    return _gcd2(std::abs(u), std::abs(v));
+}
+
+template< class T >
+inline static T _gcd3(T u, T v, T w) {
+    return _gcd2<T>(_gcd2<T>(u, v), w);
+}
+
+template< class T >
+inline static T GCD3(T u, T v, T w) {
+    return _gcd3(std::abs(u), std::abs(v), std::abs(w));
+}
+
+template< class T >
+inline static T _gcd4(T u, T v, T w, T x) {
+    return _gcd2<T>(_gcd2<T>(u, v), _gcd2<T>(w, x));
+}
+template< class T >
+inline static T GCD4(T u, T v, T w, T x) {
+    return _gcd4(std::abs(u), std::abs(v), std::abs(w), std::abs(x));
+}
+
+
 #endif

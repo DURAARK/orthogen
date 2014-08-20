@@ -340,6 +340,58 @@ typedef Quad3D<Vec3d> Quad3Dd;
 //       - HomographyProjection from a planar image
 
 
+
+// extract quads from indexed face set
+
+std::vector<Quad3Dd> extractQuads(const myIFS &ifs)
+{
+    // perform clustering of vertices into face planes
+
+
+    // canonical plane representation:  a * x + b * y + c * z + d = 0
+    // => d = -<n,p>
+    // [ a b c d ] with a,b,c,d being integers and ggT(a,b,c,d) = 1
+
+    std::vector<Quad3Dd> result;
+
+    std::map<Vec4i, std::set<unsigned int>> planemap;       // map vertices to planes
+
+    int faceid = 0;
+    for (auto const &face : ifs.faces)
+    {
+        if (face.size() >= 3)
+        {
+            // calculate normal from face
+            Vec3d n = CrossProduct(ifs[face[1]] - ifs[face[0]], ifs[face[2]]-ifs[face[0]]);
+            n.normalize();
+            // quantize
+            int a, b, c, d;
+            a = round(n[0] * 100.0);
+            b = round(n[1] * 100.0);
+            c = round(n[2] * 100.0);
+            // calculate d
+            d = round(n * ifs[face[0]]);
+
+            // TODO: maybe linear regression of the plane
+
+            int gcd = GCD4(a, b, c, d);
+            Vec4i plane(a / gcd, b / gcd, c / gcd, d / gcd);
+
+            // insert vertices into plane
+            for (auto const &vindex : face)
+                planemap[plane].insert(vindex);
+        }
+
+    }
+
+    // TODO: calculate principal axes of plane vertices and create bounding quads
+
+
+    return result;
+}
+
+
+
 int main(int ac, char* av[])
 {
     SphericalPanoramaImageProjection projection;
@@ -475,31 +527,33 @@ int main(int ac, char* av[])
 
 
 
-        int faceid = 0;
-        for (auto const &face : ingeometry.faces)
-        {
-            if (face.size() == 4)
-            {
-                // create quad in 3D
-                Quad3Dd quad(ingeometry.vertices[face[0]], 
-                             ingeometry.vertices[face[1]], 
-                             ingeometry.vertices[face[2]], 
-                             ingeometry.vertices[face[3]]);
-                // raster quad
-                Image orthophoto = quad.performProjection(projection, resolution);
-                {
-                    std::ostringstream oss;
-                    oss << "ortho_" << faceid << ".pnm";
-                    PNM::writePNM(orthophoto, oss.str());
-                    std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
-                }
-            } 
-            else
-            {
-                std::cout << "[ERR]: non-quad face detected (" << face.size() << " vertices)." << std::endl;
-            }
-            ++faceid;
-        }
+        std::vector<Quad3Dd> quads = extractQuads(ingeometry);
+
+        //int faceid = 0;
+        //for (auto const &face : ingeometry.faces)
+        //{
+        //    if (face.size() == 4)
+        //    {
+        //        // create quad in 3D
+        //        Quad3Dd quad(ingeometry.vertices[face[0]], 
+        //                     ingeometry.vertices[face[1]], 
+        //                     ingeometry.vertices[face[2]], 
+        //                     ingeometry.vertices[face[3]]);
+        //        // raster quad
+        //        Image orthophoto = quad.performProjection(projection, resolution);
+        //        {
+        //            std::ostringstream oss;
+        //            oss << "ortho_" << faceid << ".pnm";
+        //            PNM::writePNM(orthophoto, oss.str());
+        //            std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
+        //        }
+        //    } 
+        //    else
+        //    {
+        //        std::cout << "[ERR]: non-quad face detected (" << face.size() << " vertices)." << std::endl;
+        //    }
+        //    ++faceid;
+        //}
 
         return 0;
     }
