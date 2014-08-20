@@ -77,8 +77,10 @@ namespace IFS
   // INPUT/OUTPUT METHODS
   
   template< class IFS_T >
-  static bool exportOBJ( const IFS_T &ifs, std::ostream &os )
+  static bool exportOBJ( const IFS_T &ifs, std::ostream &os,
+                         const std::string &header = "" )
   {
+      os << header << std::endl;
       IFS_T::IFSINDEX vindex = 0;
       for (IFS_T::IFSVCONTAINER::const_iterator 
          V=ifs.vertices.begin(), VE=ifs.vertices.end();
@@ -112,10 +114,11 @@ namespace IFS
    }
 
    template< class IFS_T >
-   static bool exportOBJ( const IFS_T &ifs, const std::string &filename)
+   static bool exportOBJ( const IFS_T &ifs, const std::string &filename, 
+                          const std::string &header="")
    {
       std::ofstream os(filename);
-      return exportOBJ(ifs, os);
+      return exportOBJ(ifs, os, header);
    }
 
 

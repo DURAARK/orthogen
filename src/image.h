@@ -2,6 +2,8 @@
 #define _IMAGE_H_
 
 #include <vector>
+#include <cassert>
+#include "vec3.h"
 
   template <class T>
     struct ImageT
@@ -17,11 +19,24 @@
         {
         }
 
-        inline const unsigned int rgb(const int x, const int y)
+        inline int bufoffset(const int x, const int y) const
         {
-           unsigned int offset = (y*W + x) * (BPP/8);
-           assert(offset < pdata.size());
-           return pdata[offset]|(pdata[offset+1]<<8)|(pdata[offset+2]<<16);
+            return  (y*W + x) * (BPP / (sizeof(T)* 8));
+        }
+
+
+        inline unsigned int rgb(const int x, const int y) const
+        {
+           unsigned const int off = bufoffset(x,y);
+           assert(off < pdata.size());
+           return pdata[off]|(pdata[off+1]<<8)|(pdata[off+2]<<16);
+        }
+
+        inline Vec3d rgbd(const int x, const int y) const
+        {
+            unsigned const int off = bufoffset(x, y);
+            assert(off < pdata.size());
+            return Vec3d(pdata[off], pdata[off + 1], pdata[off + 2]);
         }
 
         inline bool isValid()  const { return W != 0 && H != 0 && BPP != 0; }
@@ -30,7 +45,7 @@
         inline int bpp()       const { return BPP; }
         inline const T *data() const { return &pdata[0]; }
         inline const std::vector<T>& getData() const { return pdata; }
-        inline int buffersize() const {  return W*H*BPP / (sizeof(T)*8);  }
+        inline int buffersize() const { return bufoffset(0,H);  }
 
         inline std::vector<T>& unsafeData() { return pdata; }
 
@@ -50,20 +65,36 @@
            pdata.resize(buffersize());
         }
 
-        inline T &operator()(int offset) { return pdata[offset]; }
-
-        inline T &operator()(int x, int y, int ch = 0) 
+        // write access
+        inline T &operator()(const int offset) { return pdata[offset]; }
+        inline T &operator()(const int x, const int y, const int ch = 0) 
         { 
-          return pdata[(y * W + x) * BPP / (sizeof(T)*8) + ch]; 
+          return pdata[bufoffset(x,y) + ch]; 
         }
 
-        inline const T &operator()(int x, int y, int ch = 0) const 
+        // read access
+        inline const T &operator()(const int x, const int y, const int ch = 0) const 
         { 
-            return pdata[(y * W + x) * BPP / (sizeof(T)*8) + ch];
+            return pdata[bufoffset(x, y) + ch];
         }
-        void clear(T value = 0) 
+
+        // bilinear interpolation
+        inline const Vec3d &operator()(const double x, const double y, int ch = 0) 
+            const
         {
-            memset(&pdata[0], value, W*H*BPP/(sizeof(T)*8));
+            const int l = floor(x); const int r = l+1;
+            const int t = floor(y); const int b = t+1;
+            Vec3d q11=rgbd(l, t), q21=rgbd(r, t), q12=rgbd(l, b), q22=rgbd(r, b);
+            return q11*(r - x)*(b - y) +
+                   q21*(x - l)*(b - y) +
+                   q12*(r - x)*(y - t) +
+                   q22*(x - l)*(y - t);
+        }
+
+        // clear image
+        void clear(T value = 0)
+        {
+            memset(&pdata[0], value, buffersize());
         }
     };
 

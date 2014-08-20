@@ -46,7 +46,7 @@ public:
 
     // TODO: homogenous coordinates check!
     template <class V>
-    inline V operator*(const V &v)
+    inline V operator*(const V &v) const
     {
         V m;  // result
         if (V::TYPE_D == D)

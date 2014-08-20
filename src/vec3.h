@@ -258,6 +258,16 @@ typedef MathVector<long long,4> Vec4l;
 typedef MathVector<float,4>     Vec4f;
 typedef MathVector<double,4>    Vec4d;
 
+// stdout support
+template <typename T, int D> std::ostream&
+operator<< (std::ostream &os, const MathVector<T, D> &v)
+{
+    os << "[";
+    for (int i = 0; i<D; ++i) { os << (i ? "," : "") << v.x[i]; }
+    os << "]";
+    return os;
+};
+
 // define cross product equivalent for 2D
 template <typename T>
 T inline static CrossProduct( const MathVector<T,2> &a, const MathVector<T,2> &b)

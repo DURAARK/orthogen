@@ -18,9 +18,7 @@ typedef IFS::IFS< Vec3d > myIFS;
 
 typedef MathVector<unsigned char,3> RGB;    // RGB color value
 #define PI 3.141592653589793238462643
-
-
-
+#define PIf 3.141592653589793238462643f
 
 // Image Projection allows to rayintersect with an 
 // (panoramic) image taken from a known pose
@@ -36,9 +34,9 @@ class SphericalPanoramaImageProjection : public ImageProjection
 {
 private:
     Camera<double> camera;
-    Image pano;
 
 public:
+    Image pano;
     Vec2d azimuthRange;
     Vec2d elevationRange;
 
@@ -61,116 +59,179 @@ public:
 
     inline bool applyRotation(Quaterniond &quat)
     {
+        std::cout << "CCS before rotation: " << camera;
         camera.applyRotation(quat);
+        std::cout << "CCS after rotation: " << camera;
         return true;
-    }
-
-
-    RGB   getColorProjection(const Vec3d &pos) const
-    {
-        // get vector from camera center to position
-        Vec3d rayWorld = pos - camera.getPosition();
-
-        // transform to camera orientation
-        Vec3d ray = camera.world2cam() * rayWorld;
-
-        // normalize vector to get the intersection on the unit sphere
-        ray.normalize();
-
-        // pano-x = azimuth   = phi   = atan2(y,x) normalized to [0,1]
-        // pano-y = elevation = theta = arccos(z/sqrt(x^2+y^2+z^2)) normalized to [-1,1], norm can be neglected 
-        //                                         since (x,y,z) is already normalized
-        // physical notation, theta=inclination/elevation=pano-x ,phi = azimuth = pano-y
-        Vec3d spherical = cart2spher(ray);
-
-        // get relative value to  bounds
-        const double tx = (spherical[0] - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0]);
-        const double ty = (spherical[1] - elevationRange[0]) / (elevationRange[1] - elevationRange[0]);
-
-        // pano lookup, nearest neighbor for now.. TODO: interpolation
-        RGB pixel(0,0,0);
-        if (tx >= 0.0 && tx <= 1.0 && ty >= 0.0 && ty <= 1.0)
-        {
-            pixel[0] = pano(tx*pano.width(), ty*pano.height(), 0);
-            pixel[1] = pano(tx*pano.width(), ty*pano.height(), 1);
-            pixel[2] = pano(tx*pano.width(), ty*pano.height(), 2);
-        }
-        return pixel;
     }
 
     // COORDINATE SYSTEM CONVERSIONS
 
+    // spherical to texture coordinate system
+    // spherical is in [azimuth | elevation | radius]
+    Vec2f spher2tex(const Vec3d &spherical) const
+    {
+        // get relative value to  bounds
+        Vec2f tc(
+            (float)((spherical[0] - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0])),
+            (float)(((spherical[1]) - elevationRange[1]) / (elevationRange[0] - elevationRange[1]))
+            );
+        if (tc[0] < 0.0f) tc[0] = 0.0f;
+        if (tc[0] > 1.0f) tc[0] = 1.0f;
+        if (tc[1] < 0.0f) tc[1] = 0.0f;
+        if (tc[1] > 1.0f) tc[1] = 1.0f;
+        return tc;
+    }
+
     // cartesian coordinates: Vec3 [ x, y, z ]
-    // spherical coordinates: Vec3 [ azimuth , inclination , radius ]
+    // spherical coordinates: Vec3 [ azimuth , elevation , radius ]
     Vec3d spher2cart(const Vec3d &spc) const
-    {    
+    {
         return Vec3d(
-            spc[2] * sin(spc[1]) * cos(spc[0]),
-            spc[2] * sin(spc[1]) * sin(spc[0]),
-            -spc[2] * cos(spc[1])
-        );
+            spc[2] * sin(PI/2-spc[1]) * cos(spc[0]),
+            spc[2] * sin(PI/2-spc[1]) * sin(spc[0]),
+            spc[2] * cos(PI/2-spc[1])
+            );
     }
 
     // cartesian to spherical coordinates
     Vec3d cart2spher(const Vec3d &cart) const
     {
-        double radius    = cart.length();
-        double inclination = acos(cart[2] / radius);
-        double azimuth   = atan2(cart[1], cart[0]);
+        double radius = cart.length();
+        double elevation = PI/2 - acos(cart[2] / radius);
+        double azimuth = atan2(cart[1], cart[0]);
         if (azimuth < 0) azimuth += 2.0*PI;
 
-        assert(inclination >= 0.0 && inclination <= PI);
+        assert(elevation >= -PI/2 && elevation <= PI/2);
         assert(azimuth >= 0.0 && azimuth <= 2.0*PI);
 
-        return Vec3d(azimuth, inclination, radius);
+        return Vec3d(azimuth, elevation, radius);
 
     }
-    
+
+
+    Vec2f world2texture(const Vec3d &worldpos) const
+    {
+        const Vec3d campos = camera.world2cam() * worldpos;
+        // normalize vector to get the intersection on the unit sphere
+        Vec3d ray = campos; ray.normalize();
+        Vec3d spherical = cart2spher(ray);
+        return spher2tex(spherical);
+    }
+
+    RGB   getColorProjection(const Vec3d &pos) const
+    {
+        // transform point into camera coordinate system
+        Vec2f texc = world2texture(pos);
+
+        // pano lookup, nearest neighbor for now.. TODO: interpolation
+        RGB pixel(0,0,0);
+        if (texc[0] >= 0.0 && texc[0] < 1.0 && texc[1] >= 0.0 && texc[1] < 1.0)
+        {
+            // bilinear interpolation
+            //Vec3d pix = pano(tx*pano.width(), ty*pano.height());
+            //pixel[0] = pix[0];
+            //pixel[1] = pix[1];
+            //pixel[2] = pix[2];
+            // nearest neighbor
+            pixel[0] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 0);
+            pixel[1] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 1);
+            pixel[2] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 2);
+        }
+        return pixel;
+    }
+  
     // export to textured sphere
-    myIFS exportToIFS(const double r = 1.0, const double numpts = 100)
+    myIFS exportPointCloud(const double r = 1.0, const double numpts = 100)
     {
         myIFS result;
         result.useTextureCoordinates = true;
 
-        const double inclinationStep = (PI / numpts);
+        const double elevationStep = (PI / numpts);
         const double azimuthStep = (2.0*PI / numpts);
 
         const Vec3d delta1(azimuthStep, 0, 0);
-        const Vec3d delta2(azimuthStep, inclinationStep, 0);
-        const Vec3d delta3(0, inclinationStep, 0);
+        const Vec3d delta2(azimuthStep, elevationStep, 0);
+        const Vec3d delta3(0, elevationStep, 0);
+        
+        std::vector<Vec3d> point;
+        std::vector<Vec3d> color;
 
-        const Vec2f txd1(azimuthStep, 0);
-        const Vec2f txd2(azimuthStep, inclinationStep);
-        const Vec2f txd3(0, inclinationStep);
-        const Vec2f txnorm(1.0/(2.0*PI), 1.0/PI);
+        const Matrix<double, 4> modelview = camera.cam2world();
 
         // create points on a sphere
-        for (double e = 0; e < PI; e += inclinationStep)
+        for (double e = -PI/2; e <= PI/2; e += elevationStep)
         {
-            for (double a = 0; a < 2 * PI; a += azimuthStep)
+            for (double a = 0; a <= 2 * PI; a += azimuthStep)
             {
+                //const Vec3d spherical(a, e, r);
+                //const Vec2f texcoord((float)a, (float)e);
+
+                //std::set<myIFS::IFSINDEX> face;
+                //myIFS::IFSFACE ifsface;
+
+                //auto insertVertex = [&face, &ifsface](myIFS::IFSINDEX i)
+                //{
+                //    face.insert(i);
+                //    ifsface.push_back(i);
+                //};
+
+                //insertVertex(result.vertex2index(spher2cart(spherical), spher2tex(spherical)));
+                //insertVertex(result.vertex2index(spher2cart(spherical + delta1), spher2tex(spherical + delta1)));
+                //insertVertex(result.vertex2index(spher2cart(spherical + delta2), spher2tex(spherical + delta2)));
+                //insertVertex(result.vertex2index(spher2cart(spherical + delta3), spher2tex(spherical + delta3)));
+                //// process only non-degenerated faces
+                //if (face.size() == 4)
+                //{
+                //    result.faces.push_back(ifsface);
+                //}
+
+
                 const Vec3d spherical(a, e, r);
-                const Vec2f texcoord(a, e);
+                assert((cart2spher(spher2cart(spherical)) - spherical).length() <= 0.01);
+                const Vec3d ccspos = spher2cart(spherical);
+                const Vec3d pos = modelview * ccspos;
 
-                std::set<myIFS::IFSINDEX> face;
-                myIFS::IFSFACE ifsface;
-
-                auto insertVertex = [&face, &ifsface](myIFS::IFSINDEX i)
+                RGB pcol = getColorProjection(pos);
                 {
-                    face.insert(i);
-                    ifsface.push_back(i);
-                };
-
-                insertVertex(result.vertex2index(spher2cart(spherical), texcoord.elMul(txnorm)));
-                insertVertex(result.vertex2index(spher2cart(spherical + delta1), (texcoord + txd1).elMul(txnorm)));
-                insertVertex(result.vertex2index(spher2cart(spherical + delta2), (texcoord + txd2).elMul(txnorm)));
-                insertVertex(result.vertex2index(spher2cart(spherical + delta3), (texcoord + txd3).elMul(txnorm)));
-                // process only non-degenerated faces
-                if (face.size() == 4)
-                {
-                    result.faces.push_back(ifsface);
+                    point.push_back(pos);
+                    color.push_back(Vec3d(pcol[0], pcol[1], pcol[2]) / 255.0);
                 }
+
             }
+
+            // write pointcloud file
+            std::ofstream pclfile("sphere.wrl");
+            pclfile << "#VRML V2.0 utf7" << std::endl << std::endl;
+            pclfile << "Shape {" << std::endl;
+            pclfile << "    geometry PointSet {" << std::endl;
+            pclfile << "      coord Coordinate {" << std::endl;
+            pclfile << "        point [ " << std::endl;
+            { 
+                std::ostringstream ss;
+                for (auto const &P : point)
+                {
+                    ss << P[0] << " " << P[1] << " " << P[2] << ",";
+                }
+                pclfile << ss.str() << std::endl;
+            }
+            pclfile << "        ]" << std::endl; // /point
+            pclfile << "      }" << std::endl; // /coordinate
+            pclfile << "      colorPerVertex TRUE" << std::endl;
+            pclfile << "      color Color {" << std::endl;
+            pclfile << "        color [" << std::endl;
+            {
+                std::ostringstream ss;
+                for (auto const &C : color)
+                {
+                    ss << C[0] << " " << C[1] << " " << C[2] << ",";
+                }
+                pclfile << ss.str() << std::endl;
+            }
+            pclfile << "        ]" << std::endl; // /point
+            pclfile << "      }" << std::endl; // /cikir
+            pclfile << "    }" << std::endl; // /geometry
+            pclfile << "}" << std::endl; // /shape
         }
 
         return result;
@@ -353,10 +414,12 @@ int main(int ac, char* av[])
 
         if (vm.count("elmin"))
         {
+            // convert elevation to inclination
             projection.elevationRange[0] = vm["elmin"].as<double>();
         }
         if (vm.count("elmax"))
         {
+            // convert elevation to inclination
             projection.elevationRange[1] = vm["elmax"].as<double>();
         }
 
@@ -370,14 +433,13 @@ int main(int ac, char* av[])
     if (projection.isValid() && ingeometry.isValid())
     {
         const Image &img = projection.img();
-        //PNM::writePNM(img, "projection.pnm");
         std::cout << "input image is " << img.width() << " x " << img.height() << " pixels." << std::endl;
         std::cout << "input geometry consists of " << ingeometry.vertices.size() << " vertices and " << ingeometry.faces.size() << " faces." << std::endl;
         std::cout << "using a resolution of " << resolution << "mm/pixel" << std::endl;
         
         // PROCESS OUTPUT
-        myIFS sphere = projection.exportToIFS(1000.0);
-        IFS::exportOBJ(sphere, "sphere.obj");
+        //myIFS sphere = projection.exportToIFS(1000.0, 100);
+        //IFS::exportOBJ(sphere, "sphere.obj", "# OrthoGen\nmtllib sphere.mtl\nusemtl sphere");
         
         
         // TODO: 
@@ -386,6 +448,32 @@ int main(int ac, char* av[])
         // for each face:
         //   for each pixel: perform ray intersection with pano
         //   write output image
+
+        //// PROJECT POINTS INTO PANO
+        //Vec3d P0(-3497.68, -1339.43, 1725.98);
+        //Vec2f tp = projection.world2texture(P0);
+        //projection.pano((int)(tp[0] * img.width()), (int)(tp[1] * img.height()), 0) = 255;
+        //projection.pano((int)(tp[0] * img.width()), (int)(tp[1] * img.height()), 1) = 0;
+        //projection.pano((int)(tp[0] * img.width()), (int)(tp[1] * img.height()), 2) = 0;
+        //PNM::writePNM(img, "projection.pnm");
+
+
+        //// TEST WITH MANUALLY GENERATED QUAD
+        //Quad3Dd quad(
+        //    Vec3d(-3497.68, -1339.43, 1725.98),            
+        //    Vec3d(-3497.68, -1339.43, -1532.57),
+        //    Vec3d(1467.76, -1342.38, -1532.57),
+        //    Vec3d(1467.76, -1342.38, 1725.98)
+        //    );
+        //Image orthophoto = quad.performProjection(projection, resolution);
+        //{
+        //    std::ostringstream oss;
+        //    oss << "ortho_TEST.pnm";
+        //    PNM::writePNM(orthophoto, oss.str());
+        //    std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
+        //}
+
+
 
         int faceid = 0;
         for (auto const &face : ingeometry.faces)
