@@ -11,6 +11,11 @@
 
 #include <cmath>
 
+// use eigen matrices
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+
+
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
@@ -339,8 +344,6 @@ typedef Quad3D<Vec3d> Quad3Dd;
 //       - fisheye camera dewarping
 //       - HomographyProjection from a planar image
 
-
-
 // extract quads from indexed face set
 
 std::vector<Quad3Dd> extractQuads(const myIFS &ifs)
@@ -354,7 +357,17 @@ std::vector<Quad3Dd> extractQuads(const myIFS &ifs)
 
     std::vector<Quad3Dd> result;
 
-    std::map<Vec4i, std::set<unsigned int>> planemap;       // map vertices to planes
+    struct DetectedPlane
+    {
+        Vec3d n;                      // normalvector
+        std::set<myIFS::IFSINDEX> vi; // vertex indices
+        
+        // detected coordinate system in the plane
+        Vec3d X;
+        Vec3d Y;
+    };
+
+    std::map<Vec4i, DetectedPlane> planemap;       // map vertices to planes
 
     int faceid = 0;
     for (auto const &face : ifs.faces)
@@ -366,11 +379,11 @@ std::vector<Quad3Dd> extractQuads(const myIFS &ifs)
             n.normalize();
             // quantize
             int a, b, c, d;
-            a = round(n[0] * 100.0);
-            b = round(n[1] * 100.0);
-            c = round(n[2] * 100.0);
-            // calculate d
-            d = round(n * ifs[face[0]]);
+            a = (int)round(n[0] * 100.0);
+            b = (int)round(n[1] * 100.0);
+            c = (int)round(n[2] * 100.0);
+            // calculate d: distance from origin.. maybe scale by resolution?
+            d = (int)round(n * ifs[face[0]]);
 
             // TODO: maybe linear regression of the plane
 
@@ -378,13 +391,143 @@ std::vector<Quad3Dd> extractQuads(const myIFS &ifs)
             Vec4i plane(a / gcd, b / gcd, c / gcd, d / gcd);
 
             // insert vertices into plane
+            if (planemap.find(plane) == planemap.end())
+            {
+                planemap[plane].n = n;  // update normal
+
+            }
+            else 
+            {
+                // should be similar, quite ad-hoc test here
+                assert((planemap[plane].n - n).length() < 0.01);
+            }
             for (auto const &vindex : face)
-                planemap[plane].insert(vindex);
+                planemap[plane].vi.insert(vindex);
         }
 
     }
 
     // TODO: calculate principal axes of plane vertices and create bounding quads
+    for (auto &it : planemap)
+    {
+        // calculate PCA
+        Vec3d p_(0, 0, 0);          // mean coordinate vector
+        //std::cout << "# COORDINATES" << std::endl;
+        for (auto const &vindex : it.second.vi)
+        {
+            //std::cout << ifs[vindex] << std::endl;
+            p_ += ifs[vindex];
+        }
+        p_ /= it.second.vi.size();
+        //std::cout << "# MEAN: " << p_ << std::endl;
+
+        // calculate covariance matrix
+        Eigen::Matrix3d M = Eigen::Matrix3d::Zero();
+        for (int m = 0; m < 3; ++m)
+        {
+            for (int n = 0; n < 3; ++n)
+            {
+                for (auto const &i : it.second.vi)
+                {
+                    M(m, n) += (ifs[i][m] - p_[m]) * (ifs[i][n] - p_[n]);
+                }
+                M(m, n) /= it.second.vi.size();
+            }
+        }
+
+        std::cout << "#### FACE:" << std::endl;
+        std::cout << " Normal" << it.second.n << "   plane equation:" << it.first << std::endl;
+//        std::cout << "M:" << std::endl;
+//        std::cout << M << std::endl;;
+        // calculate eigenvalues
+        // This matrix is real and symmetric, 
+        // therefore we can use SelfAdjointEigenSolver
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es;
+        es.compute(M);
+//        std::cout << "The eigenvalues of M are: " << std::endl << es.eigenvalues().transpose() << std::endl;
+//        std::cout << "The eigenvectors of M are: " << std::endl << es.eigenvectors() << std::endl;
+
+        // sort eigenvalues
+        typedef std::pair<double, unsigned int> SEigVal;
+        std::map<double, unsigned int> sortedEigValue;
+        sortedEigValue.insert(SEigVal(-es.eigenvalues()[0], 0));
+        sortedEigValue.insert(SEigVal(-es.eigenvalues()[1], 1));
+        sortedEigValue.insert(SEigVal(-es.eigenvalues()[2], 2));
+
+        for (auto const it : sortedEigValue)
+        {
+            std::cout << "eigenvalue:" << it.first << "  eigenvector: " << es.eigenvectors().col(it.second).transpose() << std::endl;
+        }
+
+        // get principal axis
+        auto getEigenVector = [&es](const SEigVal &ev) -> Vec3d
+        {
+            auto evec = es.eigenvectors().col(ev.second);
+            return Vec3d(evec[0], evec[1], evec[2]);
+        };
+
+        auto iteg = sortedEigValue.begin();
+        Vec3d PA1 = getEigenVector(*iteg);
+        std::cout << "Prinxipal Axis 1: " << PA1 << std::endl;
+        ++iteg;
+        Vec3d PA2 = getEigenVector(*iteg);
+        std::cout << "Prinxipal Axis 2: " << PA2 << std::endl;
+        ++iteg;
+        Vec3d PA3 = getEigenVector(*iteg);
+        std::cout << "Prinxipal Axis 3: " << PA3 << std::endl;
+
+        // determine X and Y direction from PA1 and PA2
+        // Assumption: (0,0,1) in world coordinates is upvector 
+        // -> Y direction is the vector with bigger absolute z value
+        if (std::abs(PA1[2]) < std::abs(PA2[2]))
+        {
+            it.second.X = PA1;
+            it.second.Y = PA2;
+        }
+        else 
+        {
+            it.second.X = PA2;
+            it.second.Y = PA1;
+        }
+
+        // rotate such that y is facing downwards (image coordinates)
+        // X should therefore face to the right, if the normal pointed away
+        // from the origin
+        if (it.second.Y[2] > 0)
+        {
+            // rotate by 180°
+            it.second.X *= -1.0;
+            it.second.Y *= -1.0;
+        }
+
+        std::cout << "Plane X-Direction : " << it.second.X << std::endl;
+        std::cout << "Plane Y-Direction : " << it.second.Y << std::endl;
+
+        // find maximum bounds in X and Y, sort by projection along the axis
+        std::map< double, myIFS::IFSINDEX> sortX;
+        std::map< double, myIFS::IFSINDEX> sortY;
+        for (auto const &vindex : it.second.vi)
+        {
+            sortX[ifs[vindex] * it.second.X] = vindex;
+            sortY[ifs[vindex] * it.second.Y] = vindex;
+        }
+        // get maximum bounds
+        std::cout << "SortX:";
+        for (auto const itx : sortX) { std::cout << ifs[itx.second] << " "; }
+        std::cout << std::endl;
+        std::cout << "SortY:";
+        for (auto const ity : sortY) { std::cout << ifs[ity.second] << " "; }
+
+        // plane normal vector is given, calculate distance from origin
+        const double planed = -(it.second.n * ifs[*it.second.vi.begin()]);
+        // create a origin in the plane coordinate system
+        const Vec3d planeOrigin = it.second.n * -planed;
+        const double od = (it.second.n * planeOrigin) + planed;
+        assert(od < 0.01);
+        // calculate quad bounds in the plane coordinate system with
+        // planeOrigin and plane coordinate system X, Y and Z=planenormal
+        assert(false);
+    }
 
 
     return result;

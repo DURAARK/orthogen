@@ -34,6 +34,9 @@ FIND_PACKAGE(Boost 1.40 COMPONENTS program_options REQUIRED )
 set(Boost_USE_STATIC_LIBS   ON)
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
+SET(Eigen_INCLUDE_DIR "I:/LIBS/eigen-3.2.1/Eigen/src" CACHE PATH "Include Path of Eigen Library")
+INCLUDE_DIRECTORIES(${Eigen_INCLUDE_DIR})
+
 #----------------------------------------------------------------------
 # Main Project
 #----------------------------------------------------------------------
