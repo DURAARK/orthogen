@@ -1,3 +1,5 @@
 Orthophoto Generation Module
 
 dependencies:
+* boost [program options]  http://www.boost.org/
+* eigen http://eigen.tuxfamily.org/

@@ -3,9 +3,8 @@
 
 #include <vector>
 #include <cassert>
-#include "vec3.h"
 
-  template <class T>
+template <class T>
     struct ImageT
     {
     protected:
@@ -32,7 +31,8 @@
            return pdata[off]|(pdata[off+1]<<8)|(pdata[off+2]<<16);
         }
 
-        inline Vec3d rgbd(const int x, const int y) const
+		template <typename VTYPE>
+        inline VTYPE rgbT(const int x, const int y) const
         {
             unsigned const int off = bufoffset(x, y);
             assert(off < pdata.size());
@@ -79,12 +79,13 @@
         }
 
         // bilinear interpolation
-        inline const Vec3d &operator()(const double x, const double y, int ch = 0) 
+		template <typename VTYPE>
+        inline const VTYPE &operator()(const double x, const double y, int ch = 0) 
             const
         {
             const int l = floor(x); const int r = l+1;
             const int t = floor(y); const int b = t+1;
-            Vec3d q11=rgbd(l, t), q21=rgbd(r, t), q12=rgbd(l, b), q22=rgbd(r, b);
+			VTYPE q11 = rgbd(l, t), q21 = rgbd(r, t), q12 = rgbd(l, b), q22 = rgbd(r, b);
             return q11*(r - x)*(b - y) +
                    q21*(x - l)*(b - y) +
                    q12*(r - x)*(y - t) +

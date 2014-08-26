@@ -7,20 +7,32 @@
 #include <string>
 #include <iterator>
 
-#include "vec3.h"
-
 namespace IFS
 {
-  template <class IFSVERTEX>
+	template< typename VTYPE >
+	struct LexicographicalComparator
+	{
+		inline bool operator() (const VTYPE &lhs, const VTYPE &rhs) const
+		{
+			for (int i = 0; i < VTYPE::RowsAtCompileTime; ++i)
+			{
+				if (lhs[i] < rhs[i]) return true;
+				if (lhs[i] > rhs[i]) return false;
+			}
+			return false;
+		}
+	};
+
+  template <class IFSVERTEX, class IFSTEXCOORD >
   struct IFS
   {
      typedef IFSVERTEX IFSVTYPE;
      typedef unsigned int IFSINDEX;
 
      typedef std::vector< IFSVERTEX > IFSVCONTAINER;    // vertex position
-     typedef std::vector< Vec2f >     IFSTCCONTAINER;   // texture coordinate
+	 typedef std::vector< IFSTEXCOORD > IFSTCCONTAINER;   // texture coordinate
 
-     typedef std::map< IFSVERTEX, IFSINDEX > INDEXMAP;
+     typedef std::map< IFSVERTEX, IFSINDEX, LexicographicalComparator<IFSVERTEX> > INDEXMAP;
 
      typedef std::vector< IFSINDEX > IFSFACE;
      typedef std::vector< IFSFACE > IFSFCONTAINER;
@@ -42,7 +54,8 @@ namespace IFS
          return vertices[index];
      }
 
-     IFSINDEX vertex2index( const IFSVERTEX &v, const Vec2f &texCoord=Vec2f(0,0))
+
+	 IFSINDEX vertex2index(const IFSVERTEX &v, const IFSTEXCOORD &texCoord = IFSTEXCOORD())
      {
         typename INDEXMAP::const_iterator itv = indexmap.find(v);
         if ( itv == indexmap.end())
@@ -92,7 +105,7 @@ namespace IFS
          V=ifs.vertices.begin(), VE=ifs.vertices.end();
          V != VE; ++V,++vindex)
       {
-         os << "v " << V->x[0] << " " << V->x[1] << " " << V->x[2] << std::endl;
+         os << "v " << (*V)[0] << " " << (*V)[1] << " " << (*V)[2] << std::endl;
          if (ifs.useTextureCoordinates)
          {
              os << "vt " << ifs.texcoordinates[vindex][0] << " " 
