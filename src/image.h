@@ -80,12 +80,15 @@ template <class T>
 
         // bilinear interpolation
 		template <typename VTYPE>
-        inline const VTYPE &operator()(const double x, const double y, int ch = 0) 
+        inline const VTYPE bilinear(const double x, const double y, int ch = 0) 
             const
         {
-            const int l = floor(x); const int r = l+1;
-            const int t = floor(y); const int b = t+1;
-			VTYPE q11 = rgbd(l, t), q21 = rgbd(r, t), q12 = rgbd(l, b), q22 = rgbd(r, b);
+            const int l = (int)floor(x); const int r = l+1;
+            const int t = (int)floor(y); const int b = t+1;
+			VTYPE q11 = rgbT<VTYPE>(l, t), 
+				  q21 = rgbT<VTYPE>(r, t), 
+				  q12 = rgbT<VTYPE>(l, b), 
+				  q22 = rgbT<VTYPE>(r, b);
             return q11*(r - x)*(b - y) +
                    q21*(x - l)*(b - y) +
                    q12*(r - x)*(y - t) +
