@@ -30,28 +30,44 @@ ENDIF(MSVC)
 
 # Dependencies
 
+#INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+
+#SET(Eigen_INCLUDE_DIR "I:/LIBS/eigen-3.2.1/Eigen/src" CACHE PATH "Include Path of Eigen Library")
+#INCLUDE_DIRECTORIES(${Eigen_INCLUDE_DIR})
+
+find_package(PCL 1.3 REQUIRED COMPONENTS common io)
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 FIND_PACKAGE(Boost 1.40 COMPONENTS program_options REQUIRED )
 set(Boost_USE_STATIC_LIBS   ON)
-INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
-SET(Eigen_INCLUDE_DIR "I:/LIBS/eigen-3.2.1/Eigen/src" CACHE PATH "Include Path of Eigen Library")
-INCLUDE_DIRECTORIES(${Eigen_INCLUDE_DIR})
+set(LIBE57_RELEASE ${CMAKE_SOURCE_DIR}/lib/E57RefImpl_src-1.1.312/MSVC2013/Release/E57RefImpl.lib CACHE FILEPATH "LibE57 release")
+set(LIBE57_DEBUG ${CMAKE_SOURCE_DIR}/lib/E57RefImpl_src-1.1.312/MSVC2013/Debug/E57RefImpl-d.lib CACHE FILEPATH "LibE57 debug")
+
+add_library(libe57 STATIC IMPORTED)
+set_property(TARGET libe57 PROPERTY IMPORTED_LOCATION_RELEASE ${LIBE57_RELEASE})
+set_property(TARGET libe57 PROPERTY IMPORTED_LOCATION_DEBUG   ${LIBE57_DEBUG})
+
+set(XERCES_RELEASE I:/LIBS/xerces-c-3.1.1/MSVC2013/Release/Xerces.lib CACHE FILEPATH "desc")
+set(XERCES_DEBUG I:/LIBS/xerces-c-3.1.1/MSVC2013/Debug/Xerces.lib CACHE FILEPATH "desc")
+
+add_library(xerces STATIC IMPORTED)
+set_property(TARGET xerces PROPERTY IMPORTED_LOCATION_RELEASE ${XERCES_RELEASE})
+set_property(TARGET xerces PROPERTY IMPORTED_LOCATION_DEBUG   ${XERCES_DEBUG})
 
 #----------------------------------------------------------------------
 # Main Project
 #----------------------------------------------------------------------
 SET(SRC_FILES 
-    src/camera.h
     src/ifs.h 
     src/image.h
     src/main.cpp
-    src/matrix.h
     src/pnm.cpp 
     src/pnm.h 
-    src/quaternion.h
-    src/vec3.h 
     )
     
 ADD_EXECUTABLE(orthogen ${SRC_FILES})
 
-TARGET_LINK_LIBRARIES( orthogen ${Boost_LIBRARIES} )
+TARGET_LINK_LIBRARIES( orthogen ${Boost_LIBRARIES} libe57 xerces)

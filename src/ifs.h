@@ -9,19 +9,19 @@
 
 namespace IFS
 {
-	template< typename VTYPE >
-	struct LexicographicalComparator
-	{
-		inline bool operator() (const VTYPE &lhs, const VTYPE &rhs) const
-		{
-			for (int i = 0; i < VTYPE::RowsAtCompileTime; ++i)
-			{
-				if (lhs[i] < rhs[i]) return true;
-				if (lhs[i] > rhs[i]) return false;
-			}
-			return false;
-		}
-	};
+    template< typename VTYPE >
+    struct LexicographicalComparator
+    {
+        inline bool operator() (const VTYPE &lhs, const VTYPE &rhs) const
+        {
+            for (int i = 0; i < VTYPE::RowsAtCompileTime; ++i)
+            {
+                if (lhs[i] < rhs[i]) return true;
+                if (lhs[i] > rhs[i]) return false;
+            }
+            return false;
+        }
+    };
 
   template <class IFSVERTEX, class IFSTEXCOORD >
   struct IFS
@@ -29,8 +29,8 @@ namespace IFS
      typedef IFSVERTEX IFSVTYPE;
      typedef unsigned int IFSINDEX;
 
-     typedef std::vector< IFSVERTEX > IFSVCONTAINER;    // vertex position
-	 typedef std::vector< IFSTEXCOORD > IFSTCCONTAINER;   // texture coordinate
+     typedef std::vector< IFSVERTEX, Eigen::aligned_allocator< IFSVERTEX > > IFSVCONTAINER;    // vertex position
+     typedef std::vector< IFSTEXCOORD, Eigen::aligned_allocator< IFSTEXCOORD > > IFSTCCONTAINER;   // texture coordinate
 
      typedef std::map< IFSVERTEX, IFSINDEX, LexicographicalComparator<IFSVERTEX> > INDEXMAP;
 
@@ -55,7 +55,7 @@ namespace IFS
      }
 
 
-	 IFSINDEX vertex2index(const IFSVERTEX &v, const IFSTEXCOORD &texCoord = IFSTEXCOORD())
+     IFSINDEX vertex2index(const IFSVERTEX &v, const IFSTEXCOORD &texCoord = IFSTEXCOORD())
      {
         typename INDEXMAP::const_iterator itv = indexmap.find(v);
         if ( itv == indexmap.end())

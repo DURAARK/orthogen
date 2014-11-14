@@ -1,6 +1,24 @@
 \documentclass[11pt]{scrartcl}
   
 \begin{document}
+
+\section{Dependencies}
+
+OrthoGen depends on
+
+\begin{itemize}
+  \item libe57 (depends on xerces-c and boost)
+  \item PCL
+  \item Eigen (contained in PCL)
+  \item boost (contained in PCL)
+\end{itemize}
+ 
+Build instructions for Windows: 
+as Eigen and boost are also dependencies of PCL i use a binary
+distribution of PCL and use their 3rdparty libraries.
+
+xerces: can be a bit tricky, but one needs to make sure that UNICODE, the runtime library (MT or MD), and the option "treat wchar\_t as builtin type" is the same on all compiled libraries (libe57 and xerces)
+
  
 \section{Assumptions}
 
@@ -14,6 +32,14 @@ The orthophoto generation module performs some assumptions on the scene:
 	\item 
 \end{itemize}
 
+
+\section{Coordinate Systems}
+
+Scanner local coordinate frame (for panoramic image):
+\begin{itemize}
+  \item coordinate frame: X right Y front Z up
+  \item sphrical coordinates: azimuth, elevation, radius
+\end{itemize}
 
  
 \end{document}

@@ -31,7 +31,7 @@ template <class T>
            return pdata[off]|(pdata[off+1]<<8)|(pdata[off+2]<<16);
         }
 
-		template <typename VTYPE>
+        template <typename VTYPE>
         inline VTYPE rgbT(const int x, const int y) const
         {
             unsigned const int off = bufoffset(x, y);
@@ -79,16 +79,16 @@ template <class T>
         }
 
         // bilinear interpolation
-		template <typename VTYPE>
+        template <typename VTYPE>
         inline const VTYPE bilinear(const double x, const double y, int ch = 0) 
             const
         {
-            const int l = (int)floor(x); const int r = l+1;
-            const int t = (int)floor(y); const int b = t+1;
-			VTYPE q11 = rgbT<VTYPE>(l, t), 
-				  q21 = rgbT<VTYPE>(r, t), 
-				  q12 = rgbT<VTYPE>(l, b), 
-				  q22 = rgbT<VTYPE>(r, b);
+            const int l = (int)floor(x); const int r = l>=(W-1) ? W-1 : l+1;
+            const int t = (int)floor(y); const int b = t>=(H-1) ? H-1 : t+1;
+            VTYPE q11 = rgbT<VTYPE>(l, t), 
+                  q21 = rgbT<VTYPE>(r, t), 
+                  q12 = rgbT<VTYPE>(l, b), 
+                  q22 = rgbT<VTYPE>(r, b);
             return q11*(r - x)*(b - y) +
                    q21*(x - l)*(b - y) +
                    q12*(r - x)*(y - t) +
