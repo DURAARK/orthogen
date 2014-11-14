@@ -1,6 +1,10 @@
 #ifndef _IFS_H_
 #define _IFS_H_
 
+// Indexed Face Set datastructure
+// by Ulrich Krispel 
+// ulrich.krispel@fraunhofer.at
+
 #include <vector>
 #include <map>
 #include <iostream>
@@ -23,25 +27,38 @@ namespace IFS
         }
     };
 
+    struct Material
+    {
+        std::string matname;
+        std::string texturename;
+
+        Material(const std::string &mat = "nomat", const std::string &tex = "")
+            : matname(mat), texturename(tex)
+        {
+        }
+    };
+
   template <class IFSVERTEX, class IFSTEXCOORD >
   struct IFS
   {
      typedef IFSVERTEX IFSVTYPE;
      typedef unsigned int IFSINDEX;
 
-     typedef std::vector< IFSVERTEX, Eigen::aligned_allocator< IFSVERTEX > > IFSVCONTAINER;    // vertex position
+     typedef std::vector< IFSVERTEX, Eigen::aligned_allocator< IFSVERTEX > > IFSVCONTAINER;        // vertex position
      typedef std::vector< IFSTEXCOORD, Eigen::aligned_allocator< IFSTEXCOORD > > IFSTCCONTAINER;   // texture coordinate
 
      typedef std::map< IFSVERTEX, IFSINDEX, LexicographicalComparator<IFSVERTEX> > INDEXMAP;
 
      typedef std::vector< IFSINDEX > IFSFACE;
      typedef std::vector< IFSFACE > IFSFCONTAINER;
+     typedef std::map<int, Material> MATERIALMAP;
 
-     IFSVCONTAINER vertices;
+     IFSVCONTAINER  vertices;
      IFSTCCONTAINER texcoordinates;
-     IFSFCONTAINER faces;
-     INDEXMAP      indexmap;
-
+     IFSFCONTAINER  faces;
+     INDEXMAP       indexmap;
+     MATERIALMAP    facematerial;
+     
      bool useTextureCoordinates;
 
      IFS() : useTextureCoordinates(false) {}
@@ -100,6 +117,7 @@ namespace IFS
                          const std::string &header = "" )
   {
       os << header << std::endl;
+
       IFS_T::IFSINDEX vindex = 0;
       for (IFS_T::IFSVCONTAINER::const_iterator 
          V=ifs.vertices.begin(), VE=ifs.vertices.end();
@@ -113,10 +131,21 @@ namespace IFS
          }
       }
       os << std::endl;
+      int fi = 0;   // face index
+      const Material *lastmat = 0;
       for (IFS_T::IFSFCONTAINER::const_iterator 
           F = ifs.faces.begin(), FE = ifs.faces.end();
-          F != FE; ++F)
+          F != FE; ++F, ++fi)
       {
+          IFS_T::MATERIALMAP::const_iterator itmat = ifs.facematerial.find(fi);
+          if (itmat != ifs.facematerial.end())
+          {
+              if (lastmat != &itmat->second)
+              {
+                  os << "usemtl " << itmat->second.matname << std::endl;
+                  lastmat = &itmat->second;
+              }
+          }
          os << "f";
          for (IFS_T::IFSFACE::const_iterator it = F->begin(), ite = F->end();
             it != ite; ++it)
@@ -133,15 +162,46 @@ namespace IFS
    }
 
    template< class IFS_T >
-   static bool exportOBJ( const IFS_T &ifs, const std::string &filename, 
+   static bool exportOBJ( const IFS_T &ifs, const std::string &filebase, 
                           const std::string &header="")
    {
-      std::ofstream os(filename);
-      return exportOBJ(ifs, os, header);
+       std::string filename = filebase;
+       filename.append(".obj");
+       std::string matfilename = filebase;
+       matfilename.append(".mtl");
+       std::string hheader = header;
+       if (!ifs.facematerial.empty())
+       {
+           hheader.append("\n mtllib ");
+           hheader.append(matfilename);
+           hheader.append("\n");
+       }
+       std::ofstream os(filename);
+       bool success = exportOBJ(ifs, os, hheader);
+       if (success) {
+           // export material file
+           if (!ifs.facematerial.empty())
+           {
+               std::ofstream osmat(matfilename);
+
+               for (const auto &mat : ifs.facematerial)
+               {
+                   osmat << "newmtl " << mat.second.matname << std::endl;
+                   osmat << " Ka 1.000 1.000 1.000" << std::endl;
+                   osmat << " Kd 1.000 1.000 1.000" << std::endl;
+                   osmat << " Ks 0.000 0.000 0.000" << std::endl;
+                   osmat << " d 1.0" << std::endl;
+                   osmat << " illum 2" << std::endl;
+                   osmat << " map_Ka " << mat.second.texturename << std::endl;
+                   osmat << " map_Kd " << mat.second.texturename << std::endl;
+                   osmat << std::endl;
+               }
+           }
+       }
+       return success;
    }
 
-
-   void Tokenize(const std::string &str, std::vector<std::string> &tokens,
+      void Tokenize(const std::string &str, std::vector<std::string> &tokens,
                  const std::string &delimiters = " ")
    {
        // Skip delimiters at beginning.
@@ -219,36 +279,6 @@ namespace IFS
 
        return loadOBJ<IFS_T>(is);
    }
-
-
-   // // export to .SVG (uses only first two dimensions
-   // template< class IFS_T >
-   // void exportSVG( const IFS_T &ifs, std::ostream &os, 
-   //                 const Transformation2D &trans=Transformation2D() )
-   // {
-   //     os << "<svg xmlns=\"http://www.w3.org/2000/svg\"" << std::endl;
-   //     os << "     xmlns:xlink=\"http://www.w3.org/1999/xlink\">" << std::endl;
-
-   //     for (const IFSFACE &F : faces)
-   //     {
-   //        assert (F.size() == 2);
-   //        const IFSVERTEX &from=vertices[F[0]];
-   //        const IFSVERTEX &to=vertices[F[1]];
-   //        double vx, vy;
-   //        trans.transformVertex(from.x[0],from.x[1],vx,vy);
-   //        os << "  <line x1=\"" << vx << "\"  y1=\"" << vy;
-   //        trans.transformVertex(to.x[0],to.x[1],vx,vy);
-   //        os << "\" x2=\""    << vx << "\"   y2=\"" << vy;
-   //        os << "\" style=\"stroke:#000000\" />" << std::endl;
-   //     }
-   //     os << "</svg>" << std::endl;
-   // }
-
-   // void exportSVG( const std::string &filename, const Transformation2D &trans=Transformation2D())
-   // {
-   //    std::ofstream os(filename);
-   //    exportSVG(os, trans);
-   // }
 
 }
 #endif

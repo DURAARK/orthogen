@@ -892,7 +892,10 @@ int main(int ac, char* av[])
         {
             std::cout << "- exporting projected panorama OBJ.." << std::endl;
             myIFS sphere = projection.exportTexturedSphere(1.0, 100);
-            IFS::exportOBJ(sphere, "sphere.obj", "# OrthoGen\nmtllib sphere.mtl\nusemtl sphere");
+            sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
+            IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
+            // TODO: also export jpg
+
         }
 
         //std::cout << "- exporting panorama pointcloud WRL.." << std::endl;
@@ -981,9 +984,11 @@ int main(int ac, char* av[])
         //IFS::exportOBJ(quadIFS, "quads.obj");
 
 
-        std::map<int, std::string> facematerial;
 
+        std::cout << "Exporting OrthoPhotos..." << std::endl;
         int faceid = 0;
+        myIFS outgeometry = ingeometry;
+        outgeometry.useTextureCoordinates = true;
         for (auto const &face : ingeometry.faces)
         {
             if (face.size() == 4)
@@ -1001,6 +1006,17 @@ int main(int ac, char* av[])
                     PNM::writePNM(orthophoto, oss.str());
                     std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
                 }
+                {
+                    std::ostringstream matname, texname;
+                    matname << "ortho" << faceid;
+                    texname << "ortho_" << faceid << ".jpg";
+                    outgeometry.facematerial[faceid] = IFS::Material(matname.str(), texname.str());
+                    // push texture coordinates
+                    outgeometry.texcoordinates.push_back(Vec2d(0, 0));
+                    outgeometry.texcoordinates.push_back(Vec2d(0, 1));
+                    outgeometry.texcoordinates.push_back(Vec2d(1, 1));
+                    outgeometry.texcoordinates.push_back(Vec2d(1, 0));
+                }
             } 
             else
             {
@@ -1013,7 +1029,7 @@ int main(int ac, char* av[])
         if (exportOBJ)
         {
             // write texture coordinates for input geometry
-            
+            IFS::exportOBJ(outgeometry, "outgeometry", "# OrthoGen textured model\n");
         }
 
         return 0;
