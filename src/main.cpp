@@ -443,6 +443,7 @@ template< class T >
 struct Quad3D
 {
     T V[4];
+    int firstVertex;
 
     // vertices are given in CCW order
     Quad3D(const T &v0, const T &v1, const T &v2, const T &v3)
@@ -465,7 +466,8 @@ struct Quad3D
         brak.push_back(vdat(v2[2] + v3[2], 2));
         brak.push_back(vdat(v3[2] + v0[2], 3));
         std::sort(brak.begin(), brak.end(), brakComp);
-        switch (brak[3].second)
+        firstVertex = brak[3].second;
+        switch (firstVertex)
         {
             case 0: V[0] = v0; V[1] = v1; V[2] = v2; V[3] = v3; break;
             case 1: V[0] = v1; V[1] = v2; V[2] = v3; V[3] = v0; break;
@@ -1012,10 +1014,13 @@ int main(int ac, char* av[])
                     texname << "ortho_" << faceid << ".jpg";
                     outgeometry.facematerial[faceid] = IFS::Material(matname.str(), texname.str());
                     // push texture coordinates
-                    outgeometry.texcoordinates.push_back(Vec2d(0, 0));
-                    outgeometry.texcoordinates.push_back(Vec2d(0, 1));
-                    outgeometry.texcoordinates.push_back(Vec2d(1, 1));
-                    outgeometry.texcoordinates.push_back(Vec2d(1, 0));
+                    const Vec2d TC[4] = { Vec2d(0, 0), Vec2d(0, 1), Vec2d(1, 1), Vec2d(1, 0) };
+                    int tci = quad.firstVertex+1;
+                    for (int i = 0; i < 4; ++i, ++tci)
+                    {
+                        if (tci == 4) tci = 0;
+                        outgeometry.texcoordinates.push_back(TC[tci]);
+                    }
                 }
             } 
             else

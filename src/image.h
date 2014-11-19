@@ -83,8 +83,8 @@ template <class T>
         inline const VTYPE bilinear(const double x, const double y, int ch = 0) 
             const
         {
-            const int l = (int)floor(x); const int r = l>=(W-1) ? W-1 : l+1;
-            const int t = (int)floor(y); const int b = t>=(H-1) ? H-1 : t+1;
+            const int l = (int)floor(x); const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
+            const int t = (int)floor(y); const int b = t >= ((int)H - 1) ? (int)H - 1 : t + 1;
             VTYPE q11 = rgbT<VTYPE>(l, t), 
                   q21 = rgbT<VTYPE>(r, t), 
                   q12 = rgbT<VTYPE>(l, b), 
