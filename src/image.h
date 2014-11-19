@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cassert>
+#include "jpeglib.h"
 
 template <class T>
     struct ImageT
@@ -104,5 +105,90 @@ template <class T>
 
     typedef ImageT<unsigned char> Image;
     typedef ImageT<float> ImageF;
+
+
+    template <class IMGTYPE>
+    bool loadJPEG(const char *fname, IMGTYPE &img)
+    {
+        struct jpeg_decompress_struct cinfo;
+        struct jpeg_error_mgr jerr;
+
+        cinfo.err = jpeg_std_error(&jerr);
+        jpeg_create_decompress(&cinfo);
+
+        FILE *infile = fopen(fname, "rb");
+
+        if (infile == NULL || ferror(infile))
+        {
+            fprintf(stderr, "error opening file %s for reading.\n", fname);
+            return false;
+        }
+        jpeg_stdio_src(&cinfo, infile);
+        jpeg_read_header(&cinfo, TRUE);
+
+        // assume RGB
+        img.resize(cinfo.image_width, cinfo.image_height);
+        jpeg_start_decompress(&cinfo);
+
+        // create vector with scanline start ptrs
+        std::vector<JSAMPROW> rowptr(cinfo.image_height);
+        for (unsigned int i = 0; i<cinfo.image_height; ++i)
+        {
+            rowptr[i] = (&img(0, i)); //     &m_data[i * cinfo.image_width * m_channels]
+        }
+
+        // read scanlines
+        while (cinfo.output_scanline < cinfo.output_height)
+        {
+            jpeg_read_scanlines(&cinfo, &rowptr[cinfo.output_scanline], 10);
+        }
+
+        jpeg_finish_decompress(&cinfo);
+        jpeg_destroy_decompress(&cinfo);
+        fclose(infile);
+
+        return true;
+    }
+
+    template <class IMGTYPE>
+    bool saveJPEG(const char *fname, const IMGTYPE &img, const int quality=80)
+    {
+        struct jpeg_compress_struct cinfo;
+        struct jpeg_error_mgr jerr;
+        FILE * outfile;
+        JSAMPROW row_pointer[1];
+        int row_stride;
+
+        assert(img.bpp() == 24);
+
+        cinfo.err = jpeg_std_error(&jerr);
+        jpeg_create_compress(&cinfo);
+
+        if ((outfile = fopen(fname, "wb")) == NULL) {
+            fprintf(stderr, "error opening file %s for writing\n", fname);
+            return false;
+        }
+        jpeg_stdio_dest(&cinfo, outfile);
+
+        cinfo.image_width = img.width();
+        cinfo.image_height = img.height();
+        cinfo.input_components = 3;
+        cinfo.in_color_space = JCS_RGB;
+
+        jpeg_set_defaults(&cinfo);
+        jpeg_set_quality(&cinfo, quality, TRUE);
+        jpeg_start_compress(&cinfo, TRUE);
+
+        row_stride = img.width() * 3;
+        while (cinfo.next_scanline < cinfo.image_height) {
+            row_pointer[0] = (JSAMPROW) &img.getData()[cinfo.next_scanline * row_stride];
+            (void)jpeg_write_scanlines(&cinfo, row_pointer, 1);
+        }
+
+        jpeg_finish_compress(&cinfo);
+        fclose(outfile);
+        jpeg_destroy_compress(&cinfo);
+        return true;
+    }
 
 #endif

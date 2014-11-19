@@ -44,8 +44,10 @@ add_library(xerces STATIC IMPORTED)
 set_property(TARGET xerces PROPERTY IMPORTED_LOCATION_RELEASE ${XERCES_RELEASE})
 set_property(TARGET xerces PROPERTY IMPORTED_LOCATION_DEBUG   ${XERCES_DEBUG})
 
-ADD_SUBDIRECTORY(lib/libjpeg)
-
+set(LIBJPEG_PATH lib/libjpeg CACHE FILEPATH "path to libjpeg src")
+ADD_SUBDIRECTORY(${LIBJPEG_PATH})
+include_directories(${LIBJPEG_PATH})
+include_directories(${CMAKE_BINARY_DIR}/${LIBJPEG_PATH})
 #----------------------------------------------------------------------
 # Main Project
 #----------------------------------------------------------------------
