@@ -1005,8 +1005,9 @@ int main(int ac, char* av[])
                 Image orthophoto = quad.performProjection(projection, resolution);
                 {
                     std::ostringstream oss;
-                    oss << "ortho_" << faceid << ".pnm";
-                    PNM::writePNM(orthophoto, oss.str());
+                    oss << "ortho_" << faceid << ".jpg";
+                    //PNM::writePNM(orthophoto, oss.str());
+                    saveJPEG(oss.str().c_str(), orthophoto);
                     std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
                 }
                 {
