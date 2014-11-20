@@ -4,6 +4,7 @@ project (libjpeg)
 
 if(MSVC)
   configure_file(jconfig.vc jconfig.h COPYONLY)
+  ADD_DEFINITIONS(-D_SCL_SECURE_NO_WARNINGS) 
 endif(MSVC)
 
 if(CMAKE_COMPILER_IS_GNUCC)

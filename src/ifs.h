@@ -1,7 +1,7 @@
 #ifndef _IFS_H_
 #define _IFS_H_
 
-// Indexed Face Set datastructure
+// Indexed Face Set datastructure with texture coordinates
 // by Ulrich Krispel 
 // ulrich.krispel@fraunhofer.at
 
@@ -27,6 +27,7 @@ namespace IFS
         }
     };
 
+    // textured material
     struct Material
     {
         std::string matname;
@@ -49,14 +50,16 @@ namespace IFS
 
      typedef std::map< IFSVERTEX, IFSINDEX, LexicographicalComparator<IFSVERTEX> > INDEXMAP;
 
-     typedef std::vector< IFSINDEX > IFSFACE;
-     typedef std::vector< IFSFACE > IFSFCONTAINER;
-     typedef std::map<int, Material> MATERIALMAP;
+     typedef std::vector< IFSINDEX >   IFSINDICES;
+     typedef std::vector< IFSINDICES > IFSICONTAINER;
+     typedef std::map<int, Material>   MATERIALMAP;
 
      IFSVCONTAINER  vertices;
      IFSTCCONTAINER texcoordinates;
-     IFSFCONTAINER  faces;
-     INDEXMAP       indexmap;
+     IFSICONTAINER  faces;                  // vertex indices per face
+     IFSICONTAINER  facetexc;               // texture coordinate indices per face
+
+     INDEXMAP       indexmap;               // indexing of vertex coordinates
      MATERIALMAP    facematerial;
      
      bool useTextureCoordinates;
@@ -81,6 +84,8 @@ namespace IFS
            if (useTextureCoordinates) 
            {
                texcoordinates.push_back(texCoord);
+               // OBJ origin is bottom left
+               texcoordinates.back()[1] = 1.0 - texcoordinates.back()[1];
                assert(vertices.size() == texcoordinates.size());
            }
            indexmap[ v ] = vertices.size() - 1;
@@ -97,9 +102,9 @@ namespace IFS
         vertices.insert(vertices.end(), 
                         other.vertices.begin(), other.vertices.end());
         // append faces
-        for (const IFSFACE &F : other.faces)
+        for (const IFSINDICES &F : other.faces)
         {
-           IFSFACE newface(F);
+           IFSINDICES newface(F);
            for (IFSINDEX &I : newface)
            {
               I += vertexoffset;
@@ -117,23 +122,30 @@ namespace IFS
                          const std::string &header = "" )
   {
       os << header << std::endl;
-
-      IFS_T::IFSINDEX vindex = 0;
-      for (IFS_T::IFSVCONTAINER::const_iterator 
-         V=ifs.vertices.begin(), VE=ifs.vertices.end();
-         V != VE; ++V,++vindex)
       {
-         os << "v " << (*V)[0] << " " << (*V)[1] << " " << (*V)[2] << std::endl;
-         if (ifs.useTextureCoordinates)
-         {
-             os << "vt " << ifs.texcoordinates[vindex][0] << " " 
-                         << ifs.texcoordinates[vindex][1] << std::endl;
-         }
+          IFS_T::IFSINDEX vindex = 0;
+          for (IFS_T::IFSVCONTAINER::const_iterator
+              V = ifs.vertices.begin(), VE = ifs.vertices.end();
+              V != VE; ++V, ++vindex)
+          {
+              os << "v " << (*V)[0] << " " << (*V)[1] << " " << (*V)[2] << std::endl;
+          }
       }
       os << std::endl;
+      if (ifs.useTextureCoordinates)
+      {
+          IFS_T::IFSINDEX tcindex = 0;
+          for (IFS_T::IFSTCCONTAINER::const_iterator
+              TC = ifs.texcoordinates.begin(), TCE = ifs.texcoordinates.end();
+              TC != TCE; ++TC, ++tcindex)
+              os << "vt " << ifs.texcoordinates[tcindex][0] << " "
+                          << ifs.texcoordinates[tcindex][1] << std::endl;
+      }
+
       int fi = 0;   // face index
       const Material *lastmat = 0;
-      for (IFS_T::IFSFCONTAINER::const_iterator 
+
+      for (IFS_T::IFSICONTAINER::const_iterator 
           F = ifs.faces.begin(), FE = ifs.faces.end();
           F != FE; ++F, ++fi)
       {
@@ -147,13 +159,19 @@ namespace IFS
               }
           }
          os << "f";
-         for (IFS_T::IFSFACE::const_iterator it = F->begin(), ite = F->end();
+         IFS_T::IFSINDICES::const_iterator tcit;
+         if (ifs.useTextureCoordinates)
+         {
+             tcit = ifs.facetexc[fi].begin();
+         }
+         for (IFS_T::IFSINDICES::const_iterator it = F->begin(), ite = F->end();
             it != ite; ++it)
          {
-            os << " " << (*it + 1);   // first element starts with 1!
+            os << " " << (*it + 1);   // obj starts counting by 1...
             if (ifs.useTextureCoordinates)
             {
-                os << "/" << (*it + 1);
+                os << "/" << (*tcit + 1);
+                ++tcit;
             }
          }
          os << std::endl;
@@ -250,7 +268,7 @@ namespace IFS
                // FACE
                if ((linetoken[0].compare("f") == 0) || (linetoken[0].compare("F") == 0))
                {
-                   IFS_T::IFSFACE face;
+                   IFS_T::IFSINDICES face;
                    for (unsigned i = 1; i < linetoken.size(); ++i)
                    {
                        // split by '/'

@@ -2,7 +2,7 @@
 
 #include <vector>
 #include <string>
-
+#include <algorithm>
 #include <cmath>
 
 // use eigen matrices
@@ -223,9 +223,12 @@ public:
     Vec2d spher2tex(const Vec3d &spherical) const
     {
         // get relative value to  bounds
+        double azimuth   = spherical[0] + PI;     // PI = scanner constant!
+        double elevation = spherical[1];
+        if (azimuth > 2.0*PI) azimuth -= 2.0*PI;
         Vec2d tc(
-            ((spherical[0] - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0])),
-            ((elevationRange[1] - spherical[1]) / (elevationRange[1] - elevationRange[0]))
+            ((azimuth - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0])),
+            1.0-(elevation - elevationRange[0]) / (elevationRange[1] - elevationRange[0])
             );
         // clamp to (0,0)-(1,1)
         if (tc[0] < 0.0) tc[0] = 0.0;
@@ -237,21 +240,23 @@ public:
 
     // cartesian coordinates: Vec3 [ x, y, z ]
     // spherical coordinates: Vec3 [ azimuth , elevation , radius ]
+    // azimuth: 0..2*pi, elevation: -PI/2..+PI/2, radius>0
     Vec3d spher2cart(const Vec3d &spc) const
     {
-        return Vec3d(
+        // PI/2-theta because angle is elevation, not inclination
+        Vec3d spherical = Vec3d(
             spc[2] * sin(PI/2-spc[1]) * cos(spc[0]),
             spc[2] * sin(PI/2-spc[1]) * sin(spc[0]),
             spc[2] * cos(PI/2-spc[1])
             );
+         return spherical;
     }
 
     // cartesian to spherical coordinates
     Vec3d cart2spher(const Vec3d &cart) const
     {
         double radius = vnorm(cart);
-        //double elevation = PI/2 - acos(cart[2] / radius);
-        double elevation = atan2(cart[2], sqrt(cart[0] * cart[0] + cart[1] * cart[1]));
+        double elevation = PI/2 - acos(cart[2] / sqrt(cart[0]*cart[0] + cart[1]*cart[1] + cart[2]*cart[2]));
         double azimuth = atan2(cart[1], cart[0]);
         if (azimuth < 0) azimuth += 2.0*PI;
 
@@ -265,10 +270,12 @@ public:
 
     Vec2d world2texture(const Vec3d &worldpos) const
     {
-        auto campos = pose.world2pose() * Eigen::Vector4d(worldpos[0],worldpos[1],worldpos[2],1.0);
+        Eigen::Vector4d campos = pose.world2pose() * Eigen::Vector4d(worldpos[0], worldpos[1], worldpos[2], 1.0);
         // normalize vector to get the intersection on the unit sphere
         Vec3d ray = Vec3d(campos[0] / campos[3], campos[1] / campos[3], campos[2] / campos[3]); ray.normalize();
         Vec3d spherical = cart2spher(ray);
+        //spherical[0] += PI;
+        //if (spherical[0] > 2.0*PI) spherical[0] -= 2.0*PI;
         return spher2tex(spherical);
     }
 
@@ -289,7 +296,7 @@ public:
             pixel[2] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 2);
 #else
             // bilinear interpolation
-            Vec3d pix = pano.bilinear<Vec3d>(texc[0] * pano.width(), texc[1] * pano.height());
+            Vec3d pix = pano.bilinear<Vec3d>(texc[0] * (pano.width()-1), (texc[1]) * (pano.height()-1));
             pixel[0] = (unsigned char)pix[0];
             pixel[1] = (unsigned char)pix[1];
             pixel[2] = (unsigned char)pix[2];
@@ -308,10 +315,13 @@ public:
         const double azimuthStep = (2.0*PI / numpts);
 
 
-        const Vec3d delta1(azimuthStep, 0, 0);
+        //const Vec3d delta1(azimuthStep, 0, 0);
+        //const Vec3d delta2(azimuthStep, elevationStep, 0);
+        //const Vec3d delta3(0, elevationStep, 0);
+        // CCW
+        const Vec3d delta1(0, elevationStep, 0);
         const Vec3d delta2(azimuthStep, elevationStep, 0);
-        const Vec3d delta3(0, elevationStep, 0);
-        const Vec2d OBJ_V_ADJ(0, 1.0);
+        const Vec3d delta3(azimuthStep, 0, 0);
 
         std::vector<Vec3d> point;
         std::vector<Vec3d> color;
@@ -326,20 +336,21 @@ public:
 #ifdef _DEBUG
                 const Vec3d cart = spher2cart(spherical);
                 const Vec3d sph2 = cart2spher(cart);
-                assert((spherical - sph2).stableNorm() < 0.01); // validate conversion
+                assert((spherical - sph2).norm() < 0.01); // validate conversion
                 const Vec2d tex = spher2tex(spherical);
                 //std::cout << " Spherical : azimuth " << spherical[0] << " elevation " << spherical[1] << " radius " << spherical[2] << std::endl;
                 //std::cout << " Texture   : X " << tex[0] << " Y " << tex[1] << std::endl;
 #endif
 
-
                 std::set<myIFS::IFSINDEX> face;
-                myIFS::IFSFACE ifsface;
+                myIFS::IFSINDICES ifsface;
+                myIFS::IFSINDICES ifsfacetc;
 
-                auto insertVertex = [&face, &ifsface](myIFS::IFSINDEX i)
+                auto insertVertex = [&face, &ifsface, &ifsfacetc](myIFS::IFSINDEX i)
                 {
                     face.insert(i);
                     ifsface.push_back(i);
+                    ifsfacetc.push_back(i);
                 };
 
                 auto cartesianVertex = [&transform, this](const Vec3d &spherical) -> Vec3d
@@ -350,16 +361,15 @@ public:
                 };
 
                 // for OBJ export: bottom left origin -> v = 1.0 - v
-
-
-                insertVertex(result.vertex2index(cartesianVertex(spherical), OBJ_V_ADJ - spher2tex(spherical)));
-                insertVertex(result.vertex2index(cartesianVertex(spherical + delta1), OBJ_V_ADJ - spher2tex(spherical + delta1)));
-                insertVertex(result.vertex2index(cartesianVertex(spherical + delta2), OBJ_V_ADJ - spher2tex(spherical + delta2)));
-                insertVertex(result.vertex2index(cartesianVertex(spherical + delta3), OBJ_V_ADJ - spher2tex(spherical + delta3)));
+                insertVertex(result.vertex2index(cartesianVertex(spherical), spher2tex(spherical)));
+                insertVertex(result.vertex2index(cartesianVertex(spherical + delta1), spher2tex(spherical + delta1)));
+                insertVertex(result.vertex2index(cartesianVertex(spherical + delta2), spher2tex(spherical + delta2)));
+                insertVertex(result.vertex2index(cartesianVertex(spherical + delta3), spher2tex(spherical + delta3)));
                 // process only non-degenerated faces
                 if (face.size() == 4)
                 {
                     result.faces.push_back(ifsface);
+                    result.facetexc.push_back(ifsfacetc);
                 }
             }
         }
@@ -776,7 +786,8 @@ int main(int ac, char* av[])
 {
     SphericalPanoramaImageProjection projection;
     myIFS ingeometry;
-    double resolution = 10.0;        // default: 1 mm/pixel
+    double resolution = 1.0;        // default: 1 mm/pixel
+    double scalefactor = 1.0;       // m
     bool   exportOBJ = false;
     bool   exportSphere = false;
     std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
@@ -793,9 +804,9 @@ int main(int ac, char* av[])
             ("rot", po::value< std::vector<double> >()->multitoken(), "rotation quaternion [w,x,y,z]")
             ("elmin", po::value< double >(), "elevation min")
             ("elmax", po::value< double >(), "elevation max")
-            ("exgeom", po::value< bool >(), "export geometry")
-            ("exsphere", po::value< bool >(), "export panoramic sphere")
-            ;
+            ("exgeom", po::value< bool >(), "export geometry [OBJ]")
+            ("exsphere", po::value< bool >(), "export panoramic sphere [OBJ]")
+            ("scale", po::value< std::string >(), "scale of input coordinates (mm/cm/m) ");
 
         po::variables_map vm;        
         po::store(po::parse_command_line(ac, av, desc, po::command_line_style::unix_style ^ po::command_line_style::allow_short), vm);
@@ -874,7 +885,16 @@ int main(int ac, char* av[])
         {
             exportSphere = vm["exsphere"].as<bool>();
         }
-
+        if (vm.count("scale"))
+        {
+            std::string s = vm["scale"].as<std::string>();
+            transform(s.begin(), s.end(), s.begin(), toupper);
+            if (s.compare("MM") == 0) scalefactor = 0.001;
+            if (s.compare("CM") == 0) scalefactor = 0.01;
+            if (s.compare("DM") == 0) scalefactor = 0.1;
+            if (s.compare("M") == 0) scalefactor = 1.0;
+            if (s.compare("KM") == 0) scalefactor = 1000.0;
+        }
     }
     catch(std::exception& e) 
     {
@@ -894,15 +914,15 @@ int main(int ac, char* av[])
         if (exportSphere)
         {
             std::cout << "- exporting projected panorama OBJ.." << std::endl;
-            myIFS sphere = projection.exportTexturedSphere(1.0, 100);
+            myIFS sphere = projection.exportTexturedSphere(1.0 / scalefactor, 100);
             sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
             IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
             saveJPEG("sphere.jpg", projection.img());
 
+            projection.exportPointCloud(1.0 / scalefactor, 100);
         }
 
         //std::cout << "- exporting panorama pointcloud WRL.." << std::endl;
-        //projection.exportPointCloud(1.0, 100);
 
         //
         // TODO: 
@@ -992,6 +1012,11 @@ int main(int ac, char* av[])
         int faceid = 0;
         myIFS outgeometry = ingeometry;
         outgeometry.useTextureCoordinates = true;
+        outgeometry.texcoordinates.push_back(Vec2d(0, 0));
+        outgeometry.texcoordinates.push_back(Vec2d(0, 1));
+        outgeometry.texcoordinates.push_back(Vec2d(1, 1));
+        outgeometry.texcoordinates.push_back(Vec2d(1, 0));
+
         for (auto const &face : ingeometry.faces)
         {
             if (face.size() == 4)
@@ -1016,13 +1041,14 @@ int main(int ac, char* av[])
                     texname << "ortho_" << faceid << ".jpg";
                     outgeometry.facematerial[faceid] = IFS::Material(matname.str(), texname.str());
                     // push texture coordinates
-                    const Vec2d TC[4] = { Vec2d(0, 0), Vec2d(0, 1), Vec2d(1, 1), Vec2d(1, 0) };
+                    myIFS::IFSINDICES texi;
                     int tci = quad.firstVertex+1;
                     for (int i = 0; i < 4; ++i, ++tci)
                     {
                         if (tci == 4) tci = 0;
-                        outgeometry.texcoordinates.push_back(TC[tci]);
+                        texi.push_back(tci);
                     }
+                    outgeometry.facetexc.push_back(texi);
                 }
             } 
             else
