@@ -4,6 +4,7 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 
 // use eigen matrices
 #include <Eigen/Dense>
@@ -19,6 +20,7 @@
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
+// vector and  quaternion types
 typedef Eigen::Quaternion<double> Quaterniond;
 typedef Eigen::Matrix4d Mat4;
 typedef Eigen::Vector4d Vec4d;
@@ -28,7 +30,7 @@ typedef Eigen::Vector2d Vec2d;
 typedef Eigen::Matrix< unsigned char, 3, 1 > RGB;
 typedef Eigen::Vector4i Vec4i;
 
-
+// geometry
 typedef IFS::IFS< Vec3d, Vec2d > myIFS;
 
 #define PI 3.141592653589793238462643
@@ -36,93 +38,7 @@ typedef IFS::IFS< Vec3d, Vec2d > myIFS;
 
 //#define NEAREST_NEIGHBOR
 
-struct IPlane
-{
-    int x[4];
-    inline IPlane(const int a, const int b, const int c, const int d) 
-    {
-        x[0] = a; x[1] = b; x[2] = c; x[3] = d;
-    }
-
-    inline int &operator[](const unsigned int index) { return x[index]; }
-    inline const bool operator<(const IPlane &other) const
-    {
-        if (x[0] < other.x[0]) return true;
-        if (x[0] > other.x[0]) return false;
-        if (x[1] < other.x[1]) return true;
-        if (x[1] > other.x[1]) return false;
-        if (x[2] < other.x[2]) return true;
-        return false;
-    }
-};
-// support for ostream
-std::ostream& operator<< (std::ostream &os, const IPlane &p)
-{
-    // write inequality
-    os << "[" << p.x[0] << "," << p.x[1] << "," << p.x[2] << "|" << p.x[3] << "]";
-    return os;
-};
-
-
-template <typename VTYPE>
-inline double vnorm(VTYPE &v) 
-{
-    double norm = 0;
-    for (int i = 0; i < VTYPE::RowsAtCompileTime; ++i)
-    {
-        norm += v[i] * v[i];
-    }
-    return sqrt(norm);
-}
-
-
-// -------------------------------------------------------
-// greatest common divisor of two and three elements
-// use GCD2,3,4
-
-template< class T >
-inline static T _gcd2(T u, T v)
-{
-    assert(u >= 0);
-    assert(v >= 0);
-    if (u == v) return u;
-    if (u == 0) return v;
-    if (v == 0) return u;
-    if (~u & 1)
-    {
-        if (v & 1) { return _gcd2(u >> 1, v); }
-        else       { return _gcd2(u >> 1, v >> 1) << 1; }
-    }
-    if (~v & 1)   { return _gcd2(u, v >> 1); }
-    if (u > v)    { return _gcd2((u - v) >> 1, v); }
-    return _gcd2((v - u) >> 1, u);
-}
-template< class T >
-inline static T GCD2(T u, T v) {
-    return _gcd2(std::abs(u), std::abs(v));
-}
-
-template< class T >
-inline static T _gcd3(T u, T v, T w) {
-    return _gcd2<T>(_gcd2<T>(u, v), w);
-}
-
-template< class T >
-inline static T GCD3(T u, T v, T w) {
-    return _gcd3(std::abs(u), std::abs(v), std::abs(w));
-}
-
-template< class T >
-inline static T _gcd4(T u, T v, T w, T x) {
-    return _gcd2<T>(_gcd2<T>(u, v), _gcd2<T>(w, x));
-}
-template< class T >
-inline static T GCD4(T u, T v, T w, T x) {
-    return _gcd4(std::abs(u), std::abs(v), std::abs(w), std::abs(x));
-}
-
-
-
+// --------------------------------------------------------------------------
 // e57 compatible camera pose 
 struct Pose
 {
@@ -255,7 +171,7 @@ public:
     // cartesian to spherical coordinates
     Vec3d cart2spher(const Vec3d &cart) const
     {
-        double radius = vnorm(cart);
+        double radius = cart.norm();
         double elevation = PI/2 - acos(cart[2] / sqrt(cart[0]*cart[0] + cart[1]*cart[1] + cart[2]*cart[2]));
         double azimuth = atan2(cart[1], cart[0]);
         if (azimuth < 0) azimuth += 2.0*PI;
@@ -306,7 +222,7 @@ public:
     }
   
     // export to textured sphere
-    myIFS exportTexturedSphere(const double r = 1.0, const double numpts = 100)
+    myIFS exportTexturedSphere(const double r = 1.0, const int numpts = 100)
     {
         myIFS result;
         result.useTextureCoordinates = true;
@@ -327,6 +243,52 @@ public:
         std::vector<Vec3d> color;
 
         const Mat4 transform = pose.pose2world();
+
+        //int offset = 0; // vertex index
+        //for (int elIndex = 0; elIndex < numpts; elIndex++)
+        //{
+        //    const double e = (-PI/2) + (elIndex * PI) / (numpts-1);
+        //    for (int azIndex = 0; azIndex < numpts; ++azIndex)
+        //    {
+        //        const double a = (azIndex * 2.0 * PI) / numpts;
+        //        const Vec3d spherical(a, e, r);
+        //        // convert to vertex position (cartesian)
+        //        const Vec3d ccspos = spher2cart(spherical);
+        //        const Vec4d pos = transform * Vec4d(ccspos[0], ccspos[1], ccspos[2], 1.0);
+        //        const Vec3d v(pos[0] / pos[3], pos[1] / pos[3], pos[2] / pos[3]);
+
+        //        result.vertices.push_back(v);
+
+        //        if (elIndex < numpts - 1)
+        //        {
+        //            myIFS::IFSINDICES quad;         // vertex indices
+        //            quad.push_back(offset + azIndex);                           // a,e
+        //            quad.push_back(offset + (azIndex + 1) % numpts);            // a+1,e
+        //            quad.push_back(offset + numpts + ((azIndex+ 1) % numpts));  // a+1,e+1
+        //            quad.push_back(offset + numpts + azIndex);                  // a,e
+        //            result.faces.push_back(quad);
+
+        //        }
+        //    }
+        //    offset += numpts;
+        //}
+
+        //const Mat4 world2sphere = pose.world2pose();
+        //// create texture coordinates
+        //for (myIFS::IFSINDICES &face : result.faces)
+        //{
+        //    myIFS::IFSINDICES texc;            // texture coordinates
+        //    for (myIFS::IFSINDEX i : face)
+        //    {
+        //        texc.push_back(result.texcoordinates.size());
+        //        Vec4d V(result.vertices[i][0], result.vertices[i][1], result.vertices[i][2], 1.0);
+        //        Vec4d VS = world2sphere * V;
+        //        result.texcoordinates.push_back(spher2tex(cart2spher(Vec3d(VS[0]/VS[3], VS[1]/VS[3], VS[2]/VS[3]))));
+        //    }
+        //    result.facetexc.push_back(texc);
+        //}
+
+
 
         for (double e = -PI / 2; e <= PI / 2; e += elevationStep)
         {
@@ -394,13 +356,15 @@ public:
 
         const Mat4 modelview = pose.pose2world();
 
+        std::cout << "coloring sphere points.." << std::endl;
+
         // create points on a sphere
         for (double e = -PI/2; e <= PI/2; e += elevationStep)
         {
             for (double a = 0; a <= 2 * PI; a += azimuthStep)
             {
                 const Vec3d spherical(a, e, r);
-                assert(vnorm(cart2spher(spher2cart(spherical)) - spherical) <= 0.01);
+                assert((cart2spher(spher2cart(spherical)) - spherical).norm() <= 0.01);
                 const Vec3d ccspos = spher2cart(spherical);
                 const Vec4d pos  = modelview * Vec4d(ccspos[0],ccspos[1],ccspos[2],1.0);
                 const Vec3d wpos = Vec3d(pos[0] / pos[3], pos[1] / pos[3], pos[2] / pos[3]);
@@ -411,40 +375,42 @@ public:
                 }
 
             }
-
-            // write pointcloud file
-            std::ofstream pclfile("sphere.wrl");
-            pclfile << "#VRML V2.0 utf7" << std::endl << std::endl;
-            pclfile << "Shape {" << std::endl;
-            pclfile << "    geometry PointSet {" << std::endl;
-            pclfile << "      coord Coordinate {" << std::endl;
-            pclfile << "        point [ " << std::endl;
-            { 
-                std::ostringstream ss;
-                for (auto const &P : point)
-                {
-                    ss << P[0] << " " << P[1] << " " << P[2] << ",";
-                }
-                pclfile << ss.str() << std::endl;
-            }
-            pclfile << "        ]" << std::endl; // /point
-            pclfile << "      }" << std::endl; // /coordinate
-            pclfile << "      colorPerVertex TRUE" << std::endl;
-            pclfile << "      color Color {" << std::endl;
-            pclfile << "        color [" << std::endl;
-            {
-                std::ostringstream ss;
-                for (auto const &C : color)
-                {
-                    ss << C[0] << " " << C[1] << " " << C[2] << ",";
-                }
-                pclfile << ss.str() << std::endl;
-            }
-            pclfile << "        ]" << std::endl; // /point
-            pclfile << "      }" << std::endl; // /cikir
-            pclfile << "    }" << std::endl; // /geometry
-            pclfile << "}" << std::endl; // /shape
         }
+
+        std::cout << "writing wrl file.." << std::endl;
+
+        // write pointcloud file
+        std::ofstream pclfile("sphere.wrl");
+        pclfile << "#VRML V2.0 utf7" << std::endl << std::endl;
+        pclfile << "Shape {" << std::endl;
+        pclfile << "    geometry PointSet {" << std::endl;
+        pclfile << "      coord Coordinate {" << std::endl;
+        pclfile << "        point [ " << std::endl;
+        {
+            std::ostringstream ss;
+            for (auto const &P : point)
+            {
+                ss << P[0] << " " << P[1] << " " << P[2] << ",";
+            }
+            pclfile << ss.str() << std::endl;
+        }
+        pclfile << "        ]" << std::endl; // /point
+        pclfile << "      }" << std::endl; // /coordinate
+        pclfile << "      colorPerVertex TRUE" << std::endl;
+        pclfile << "      color Color {" << std::endl;
+        pclfile << "        color [" << std::endl;
+        {
+            std::ostringstream ss;
+            for (auto const &C : color)
+            {
+                ss << C[0] << " " << C[1] << " " << C[2] << ",";
+            }
+            pclfile << ss.str() << std::endl;
+        }
+        pclfile << "        ]" << std::endl; // /point
+        pclfile << "      }" << std::endl; // /cikir
+        pclfile << "    }" << std::endl; // /geometry
+        pclfile << "}" << std::endl; // /shape
 
         return result;
     }
@@ -472,10 +438,10 @@ struct Quad3D
             }
         } brakComp;
 
-        brak.push_back(vdat(v0[2] + v1[2], 0));
-        brak.push_back(vdat(v1[2] + v2[2], 1));
-        brak.push_back(vdat(v2[2] + v3[2], 2));
-        brak.push_back(vdat(v3[2] + v0[2], 3));
+        brak.push_back(vdat(v0[2] + v1[2], 1));
+        brak.push_back(vdat(v1[2] + v2[2], 2));
+        brak.push_back(vdat(v2[2] + v3[2], 3));
+        brak.push_back(vdat(v3[2] + v0[2], 0));
         std::sort(brak.begin(), brak.end(), brakComp);
         firstVertex = brak[3].second;
         switch (firstVertex)
@@ -501,11 +467,11 @@ struct Quad3D
 #endif
 
         // origin is left top
-        T W  = V[1] - V[0];
-        T H = V[3] - V[0];
+        T H  = V[1] - V[0];     // Y - Vector
+        T W = V[3] - V[0];      // X - Vector
 
-        double width = vnorm(W);
-        double height = vnorm(H);
+        double width = W.norm();     // vnorm(W);
+        double height = H.norm();    // vnorm(H);
 
         // get image space X and Y directional vectors in world coordinates
         T xdir = W; xdir.normalize();
@@ -546,240 +512,27 @@ struct Quad3D
     }
 
 };
+
+// std output stream support
+template <class T> std::ostream& operator<<(std::ostream& os, const Quad3D<T> &q)
+{
+    auto PV = [&q](std::ostream& os, const int i) { os << "[" << q.V[i][0] << ", " << q.V[i][1] << ", " << q.V[i][2] << "] "; };
+    //os << q.V[0] << " " << q.V[1] << " " << q.V[2] << q.V[3] << std::endl;
+    os << std::setprecision(2);
+    os << "  V0:";
+    PV(os, 0);
+    os << "  V1:";
+    PV(os, 1);
+    os << std::endl << "  V2:";
+    PV(os, 2);
+    os << "  V3:";
+    PV(os, 3);
+    os << std::endl;
+    os << " first face vertex: " << q.firstVertex << std::endl;
+    return os;
+}
+
 typedef Quad3D<Vec3d> Quad3Dd;
-
-// TODO: additional projection types?
-//       - fisheye camera dewarping
-//       - HomographyProjection from a planar image
-
-// extract quads from indexed face set
-//
-//std::vector<Quad3Dd> extractQuads(const myIFS &ifs)
-//{
-//    // perform clustering of vertices into face planes
-//    std::cout << "performing quad extraction..." << std::endl;
-//    // canonical plane representation:  a * x + b * y + c * z + d = 0
-//    // => d = -<n,p>
-//    // [ a b c d ] with a,b,c,d being integers and gcd(a,b,c,d) = 1
-//
-//    std::vector<Quad3Dd> result;
-//
-//    struct DetectedPlane
-//    {
-//        Pose ccs;						// reference coordinate system
-//        std::set<myIFS::IFSINDEX> vi;	// vertex indices
-//    };
-//
-//
-//    std::map<IPlane, DetectedPlane> planemap;       // map vertices to planes  LexicographicalComparator<Vec4i>
-//
-//    // STEP 1: Clustering
-//    int faceid = 0;
-//    for (auto const &face : ifs.faces)
-//    {
-//        if (face.size() >= 3)
-//        {
-//            // calculate normal from face
-//            Vec3d n = (ifs[face[1]] - ifs[face[0]]).cross(ifs[face[2]] - ifs[face[0]]);
-//            //CrossProduct(ifs[face[1]] - ifs[face[0]], ifs[face[2]]-ifs[face[0]]);
-//            n.normalize();
-//            // quantize
-//            int a, b, c, d;
-//            a = (int)round(n[0] * 5.0);
-//            b = (int)round(n[1] * 5.0);
-//            c = (int)round(n[2] * 5.0);
-//            // calculate d: distance from origin.. maybe scale by resolution?
-//            d = (int)round(n.dot(ifs[face[0]])/10.0);
-//
-//            // TODO: maybe linear regression of the plane
-//
-//            int gcd = GCD3(a, b, c);
-//            IPlane plane(a / gcd, b / gcd, c / gcd, d);
-//
-//            std::cout << "face " << faceid << plane << std::endl;
-//
-//            // insert vertices into plane
-//            if (planemap.find(plane) == planemap.end())
-//            {
-//                planemap[plane].ccs.Z = n;  // update normal
-//            }
-//            else 
-//            {
-//                // should be similar, quite ad-hoc test here
-//                const double d = vnorm(planemap[plane].ccs.Z - n);
-//                assert(d < 1.0);
-//            }
-//            for (auto const &vindex : face)
-//                planemap[plane].vi.insert(vindex);
-//        }
-//        ++faceid;
-//    }
-//
-//    // STEP 2: calculate principal axes of plane vertices and create bounding quads
-//    std::cout << "processing " << planemap.size() << " quads.." << std::endl;
-//    for (auto &it : planemap)
-//    {
-//        // calculate PCA
-//        Vec3d p_(0, 0, 0);          // mean coordinate vector
-//        //std::cout << "# COORDINATES" << std::endl;
-//        for (auto const &vindex : it.second.vi)
-//        {
-//            //std::cout << ifs[vindex] << std::endl;
-//            p_ += ifs[vindex];
-//        }
-//        p_ /= it.second.vi.size();
-//        //std::cout << "# MEAN: " << p_ << std::endl;
-//
-//        // calculate covariance matrix
-//        Eigen::Matrix3d M = Eigen::Matrix3d::Zero();
-//        for (int m = 0; m < 3; ++m)
-//        {
-//            for (int n = 0; n < 3; ++n)
-//            {
-//                for (auto const &i : it.second.vi)
-//                {
-//                    M(m, n) += (ifs[i][m] - p_[m]) * (ifs[i][n] - p_[n]);
-//                }
-//                M(m, n) /= it.second.vi.size();
-//            }
-//        }
-//
-//        //std::cout << "#### FACE:" << std::endl;
-//        //std::cout << " Pose:" << it.second.ccs << "   plane equation:" << it.first << std::endl;
-////        std::cout << "M:" << std::endl;
-////        std::cout << M << std::endl;;
-//        // calculate eigenvalues
-//        // This matrix is real and symmetric, 
-//        // therefore we can use SelfAdjointEigenSolver
-//        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es;
-//        es.compute(M);
-////        std::cout << "The eigenvalues of M are: " << std::endl << es.eigenvalues().transpose() << std::endl;
-////        std::cout << "The eigenvectors of M are: " << std::endl << es.eigenvectors() << std::endl;
-//
-//        // sort eigenvalues
-//        typedef std::pair<double, unsigned int> SEigVal;
-//        std::map<double, unsigned int> sortedEigValue;
-//        sortedEigValue.insert(SEigVal(-es.eigenvalues()[0], 0));
-//        sortedEigValue.insert(SEigVal(-es.eigenvalues()[1], 1));
-//        sortedEigValue.insert(SEigVal(-es.eigenvalues()[2], 2));
-//
-//        //for (auto const it : sortedEigValue)
-//        //{
-//        //    std::cout << "eigenvalue:" << it.first << "  eigenvector: " << es.eigenvectors().col(it.second).transpose() << std::endl;
-//        //}
-//
-//        // get principal axis
-//        auto getEigenVector = [&es](const SEigVal &ev) -> Vec3d
-//        {
-//            auto evec = es.eigenvectors().col(ev.second);
-//            return Vec3d(evec[0], evec[1], evec[2]);
-//        };
-//
-//        auto iteg = sortedEigValue.begin();
-//        Vec3d PA1 = getEigenVector(*iteg);
-//        //std::cout << "Prinxipal Axis 1: " << PA1 << std::endl;
-//        ++iteg;
-//        Vec3d PA2 = getEigenVector(*iteg);
-//        //std::cout << "Prinxipal Axis 2: " << PA2 << std::endl;
-//        ++iteg;
-//        Vec3d PA3 = getEigenVector(*iteg);
-//        //std::cout << "Prinxipal Axis 3: " << PA3 << std::endl;
-//
-//        // determine X and Y direction from PA1 and PA2
-//        // Assumption: (0,0,1) in world coordinates is upvector 
-//        // -> Y direction is the vector with bigger absolute z value
-//        if (std::abs(PA1[2]) < std::abs(PA2[2]))
-//        {
-//            it.second.ccs.X = PA1;
-//            it.second.ccs.Y = PA2;
-//        }
-//        else 
-//        {
-//            it.second.ccs.X = PA2;
-//            it.second.ccs.Y = PA1;
-//        }
-//
-//        // rotate such that y is facing downwards (image coordinates)
-//        // X should therefore face to the right, if the normal pointed away
-//        // from the origin
-//        if (it.second.ccs.Y[2] > 0)
-//        {
-//            // rotate by 180°
-//            it.second.ccs.X *= -1.0;
-//            it.second.ccs.Y *= -1.0;
-//        }
-//
-//        //std::cout << "Plane X-Direction : " << it.second.ccs.X << std::endl;
-//        //std::cout << "Plane Y-Direction : " << it.second.ccs.Y << std::endl;
-//        // plane normal vector is given, calculate distance from origin
-//        const double planed = -(it.second.ccs.Z.dot(ifs[*it.second.vi.begin()]));
-//        // create a origin in the plane coordinate system
-//        it.second.ccs.O = it.second.ccs.Z * -planed;
-//
-//
-//        //// find maximum bounds in X and Y, sort by projection along the axis
-//        //std::map< double, myIFS::IFSINDEX> sortX;
-//        //std::map< double, myIFS::IFSINDEX> sortY;
-//        //for (auto const &vindex : it.second.vi)
-//        //{
-//        //    sortX[ifs[vindex].dot(it.second.ccs.X)] = vindex;
-//        //    sortY[ifs[vindex].dot(it.second.ccs.Y)] = vindex;
-//        //}
-//        //// get maximum bounds
-//        //std::cout << "SortX:";
-//        //for (auto const itx : sortX) { std::cout << ifs[itx.second].transpose() << ", "; }
-//        //std::cout << std::endl;
-//        //std::cout << "SortY:";
-//        //for (auto const ity : sortY) { std::cout << ifs[ity.second].transpose() << ", "; }
-//
-//
-//        //// test if plane origin and face points lie in the plane
-//        //auto testInPlane = [](const Vec3d &n, const double d, const Vec3d &p)
-//        //{
-//        //	const double off = (n.dot(p)) + d;
-//        //	assert(std::abs(off) < 0.01);
-//        //};
-//        //testInPlane(it.second.ccs.Z, planed, it.second.ccs.O);
-//        //for (auto const &vindex : it.second.vi)
-//        //{
-//        //	testInPlane(it.second.ccs.Z, planed, ifs[vindex]);
-//        //}
-//
-//        //std::cout << " POSE: " << it.second.ccs << std::endl;
-//
-//        // calculate quad bounds in the plane coordinate system with
-//        const Mat4 T = it.second.ccs.world2pose();
-//        Vec2d xrange(DBL_MAX, DBL_MIN);
-//        Vec2d yrange(DBL_MAX, DBL_MIN);
-//        for (auto const &vindex : it.second.vi)
-//        {
-//            // project point to plane coordinate system
-//            Vec4d wh(ifs[vindex][0], ifs[vindex][1], ifs[vindex][2], 1.0);
-//            Vec4d p = T * wh;
-//            if (p[0] < xrange[0]) xrange[0] = p[0];
-//            if (p[0] > xrange[1]) xrange[1] = p[0];
-//            if (p[1] < yrange[0]) yrange[0] = p[1];
-//            if (p[1] > yrange[1]) yrange[1] = p[1];
-//        }
-//
-//        // create quad
-//        const Mat4 WT = it.second.ccs.pose2world();
-//        auto projMul = [&WT](const Vec3d &v) -> Vec3d
-//        {
-//            Vec4d r = WT * Vec4d(v[0], v[1], v[2], 1.0);
-//            return Vec3d(r[0] / r[3], r[1] / r[3], r[2] / r[3]);
-//        };
-//
-//        result.push_back(Quad3Dd(
-//            projMul(Vec3d(xrange[0], yrange[0], 0.0)),
-//            projMul(Vec3d(xrange[0], yrange[1], 0.0)),
-//            projMul(Vec3d(xrange[1], yrange[1], 0.0)),
-//            projMul(Vec3d(xrange[1], yrange[0], 0.0))
-//            ));
-//    }
-//    return result;
-//}
-
 
 
 int main(int ac, char* av[])
@@ -913,13 +666,13 @@ int main(int ac, char* av[])
 
         if (exportSphere)
         {
-            std::cout << "- exporting projected panorama OBJ.." << std::endl;
-            myIFS sphere = projection.exportTexturedSphere(1.0 / scalefactor, 100);
-            sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
-            IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
-            saveJPEG("sphere.jpg", projection.img());
+            //std::cout << "- exporting projected panorama OBJ.." << std::endl;
+            //myIFS sphere = projection.exportTexturedSphere(1.0 / scalefactor, 100);
+            //sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
+            //IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
+            //saveJPEG("sphere.jpg", projection.img());
 
-            projection.exportPointCloud(1.0 / scalefactor, 100);
+            //projection.exportPointCloud(1.0 / scalefactor, 1000);
         }
 
         //std::cout << "- exporting panorama pointcloud WRL.." << std::endl;
@@ -932,7 +685,7 @@ int main(int ac, char* av[])
         //   for each pixel: perform ray intersection with pano
         //   write output image
 
-        //// PROJECT POINTS INTO PANO
+        // PROJECT POINTS INTO PANO
         //Vec3d P0(-3497.68, -1339.43, 1725.98);
         //Vec2f tp = projection.world2texture(P0);
         //projection.pano((int)(tp[0] * img.width()), (int)(tp[1] * img.height()), 0) = 255;
@@ -1012,10 +765,10 @@ int main(int ac, char* av[])
         int faceid = 0;
         myIFS outgeometry = ingeometry;
         outgeometry.useTextureCoordinates = true;
-        outgeometry.texcoordinates.push_back(Vec2d(0, 0));
-        outgeometry.texcoordinates.push_back(Vec2d(0, 1));
-        outgeometry.texcoordinates.push_back(Vec2d(1, 1));
-        outgeometry.texcoordinates.push_back(Vec2d(1, 0));
+        outgeometry.texcoordinates.push_back(Vec2d(0, 1));  // left top
+        outgeometry.texcoordinates.push_back(Vec2d(0, 0));  // left bottom
+        outgeometry.texcoordinates.push_back(Vec2d(1, 0));  // right bottom
+        outgeometry.texcoordinates.push_back(Vec2d(1, 1));  // right up
 
         for (auto const &face : ingeometry.faces)
         {
@@ -1042,12 +795,15 @@ int main(int ac, char* av[])
                     outgeometry.facematerial[faceid] = IFS::Material(matname.str(), texname.str());
                     // push texture coordinates
                     myIFS::IFSINDICES texi;
-                    int tci = quad.firstVertex+1;
+                    //int tci = (quad.firstVertex+3) % 4; //(quad.firstVertex+3) % 4;
+                    assert(quad.firstVertex < 4);
+                    int tci = (4-quad.firstVertex) % 4;
                     for (int i = 0; i < 4; ++i, ++tci)
                     {
                         if (tci == 4) tci = 0;
                         texi.push_back(tci);
                     }
+                    std::cout << quad;
                     outgeometry.facetexc.push_back(texi);
                 }
             } 
