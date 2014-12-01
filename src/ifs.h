@@ -219,7 +219,7 @@ namespace IFS
        return success;
    }
 
-      void Tokenize(const std::string &str, std::vector<std::string> &tokens,
+   inline void Tokenize(const std::string &str, std::vector<std::string> &tokens,
                  const std::string &delimiters = " ")
    {
        // Skip delimiters at beginning.

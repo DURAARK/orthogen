@@ -6,415 +6,17 @@
 #include <cmath>
 #include <iomanip>
 
-// use eigen matrices
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+#include "types.h"
+#include "projection.h"
 
-#include "ifs.h"
-
-#include "image.h"
 #include "pnm.h"
-
-#include "meanshift.h"
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
-// vector and  quaternion types
-typedef Eigen::Quaternion<double> Quaterniond;
-typedef Eigen::Matrix4d Mat4;
-typedef Eigen::Vector4d Vec4d;
-typedef Eigen::Vector3d Vec3d;
-typedef Eigen::Vector2d Vec2d;
-
-typedef Eigen::Matrix< unsigned char, 3, 1 > RGB;
-typedef Eigen::Vector4i Vec4i;
-
-// geometry
-typedef IFS::IFS< Vec3d, Vec2d > myIFS;
-
-#define PI 3.141592653589793238462643
-#define PIf 3.141592653589793238462643f
-
-//#define NEAREST_NEIGHBOR
 
 // --------------------------------------------------------------------------
-// e57 compatible camera pose 
-struct Pose
-{
-    Vec3d O;
-    Vec3d X;
-    Vec3d Y;
-    Vec3d Z;
 
-    // scanner coordinate system is X-right, Y-front, Z-up
-    Pose() : O(0, 0, 0), X(-1, 0, 0), Y(0, 1, 0), Z(0, 0, 1)
-    {
-    }
-
-    void applyRotation(const Quaterniond &q)
-    {
-        X = q * X;
-        Y = q * Y;
-        Z = q * Z;
-    }
-
-    // std output stream support
-    friend std::ostream& operator<<(std::ostream& os, const Pose& c)
-    {
-        os << "O: " << c.O.transpose() << " X:" << c.X.transpose() << " Y:" << c.Y.transpose() << " Z:" << c.Z.transpose() << std::endl;
-        return os;
-    }
-
-    Mat4 world2pose() const
-    {
-        Mat4 M;
-        M.col(0) = Vec4d(X[0], Y[0], Z[0], 0.0);
-        M.col(1) = Vec4d(X[1], Y[1], Z[1], 0.0);
-        M.col(2) = Vec4d(X[2], Y[2], Z[2], 0.0);
-        M.col(3) = Vec4d(-X.dot(O), -Y.dot(O), -Z.dot(O), 1.0);
-        return M;
-    }
-
-    Mat4 pose2world() const
-    {
-        Mat4 M;
-        M.col(0) = Vec4d(X[0], X[1], X[2], 0.0);
-        M.col(1) = Vec4d(Y[0], Y[1], Y[2], 0.0);
-        M.col(2) = Vec4d(Z[0], Z[1], Z[2], 0.0);
-        M.col(3) = Vec4d(O[0], O[1], O[2], 1.0);
-        return M;
-    }
-
-};
-
-
-// Image Projection allows to rayintersect with an 
-// (panoramic) image taken from a known pose
-class ImageProjection
-{
-public:
-    virtual RGB getColorProjection(const Vec3d &pos) const = 0;
-};
-
-class SphericalPanoramaImageProjection : public ImageProjection
-{
-private:
-    Pose pose;
-
-public:
-    Image pano;
-    Vec2d azimuthRange;
-    Vec2d elevationRange;
-
-    SphericalPanoramaImageProjection() 
-        : azimuthRange(0, 2 * PI), elevationRange(-PI/2,PI/2)
-    {
-    }
-
-    inline void setPanoramicImage(const Image &pi) { pano = pi; }
-
-    inline const Image & img()  { return pano; }
-
-    inline bool isValid() const { return pano.isValid(); }
-
-    inline bool setTransformation(const Vec3d &trans)
-    {
-        pose.O = trans;
-        return true;
-    }
-
-    inline bool applyRotation(Quaterniond &quat)
-    {
-        std::cout << "CCS before rotation: " << pose;
-        pose.applyRotation(quat);
-        std::cout << "CCS after rotation: " << pose;
-        return true;
-    }
-
-    // COORDINATE SYSTEM CONVERSIONS
-
-    // spherical to texture coordinate system
-    // spherical is in [azimuth | elevation | radius]
-    Vec2d spher2tex(const Vec3d &spherical) const
-    {
-        // get relative value to  bounds
-        double azimuth   = spherical[0] + PI;     // PI = scanner constant!
-        double elevation = spherical[1];
-        if (azimuth > 2.0*PI) azimuth -= 2.0*PI;
-        Vec2d tc(
-            ((azimuth - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0])),
-            1.0-(elevation - elevationRange[0]) / (elevationRange[1] - elevationRange[0])
-            );
-        // clamp to (0,0)-(1,1)
-        if (tc[0] < 0.0) tc[0] = 0.0;
-        if (tc[0] > 1.0) tc[0] = 1.0;
-        if (tc[1] < 0.0) tc[1] = 0.0;
-        if (tc[1] > 1.0) tc[1] = 1.0;
-        return tc;
-    }
-
-    // cartesian coordinates: Vec3 [ x, y, z ]
-    // spherical coordinates: Vec3 [ azimuth , elevation , radius ]
-    // azimuth: 0..2*pi, elevation: -PI/2..+PI/2, radius>0
-    Vec3d spher2cart(const Vec3d &spc) const
-    {
-        // PI/2-theta because angle is elevation, not inclination
-        Vec3d spherical = Vec3d(
-            spc[2] * sin(PI/2-spc[1]) * cos(spc[0]),
-            spc[2] * sin(PI/2-spc[1]) * sin(spc[0]),
-            spc[2] * cos(PI/2-spc[1])
-            );
-         return spherical;
-    }
-
-    // cartesian to spherical coordinates
-    Vec3d cart2spher(const Vec3d &cart) const
-    {
-        double radius = cart.norm();
-        double elevation = PI/2 - acos(cart[2] / sqrt(cart[0]*cart[0] + cart[1]*cart[1] + cart[2]*cart[2]));
-        double azimuth = atan2(cart[1], cart[0]);
-        if (azimuth < 0) azimuth += 2.0*PI;
-
-        assert(elevation >= -PI/2 && elevation <= PI/2);
-        assert(azimuth >= 0.0 && azimuth <= 2.0*PI);
-
-        return Vec3d(azimuth, elevation, radius);
-
-    }
-
-
-    Vec2d world2texture(const Vec3d &worldpos) const
-    {
-        Eigen::Vector4d campos = pose.world2pose() * Eigen::Vector4d(worldpos[0], worldpos[1], worldpos[2], 1.0);
-        // normalize vector to get the intersection on the unit sphere
-        Vec3d ray = Vec3d(campos[0] / campos[3], campos[1] / campos[3], campos[2] / campos[3]); ray.normalize();
-        Vec3d spherical = cart2spher(ray);
-        //spherical[0] += PI;
-        //if (spherical[0] > 2.0*PI) spherical[0] -= 2.0*PI;
-        return spher2tex(spherical);
-    }
-
-    RGB   getColorProjection(const Vec3d &pos) const
-    {
-        // transform point into camera coordinate system
-        Vec2d texc = world2texture(pos);
-
-        // pano lookup, nearest neighbor for now.. TODO: interpolation
-        RGB pixel(0,0,0);
-        if (texc[0] >= 0.0 && texc[0] < 1.0 && texc[1] >= 0.0 && texc[1] < 1.0)
-        {
-            // bilinear interpolation
-#ifdef NEAREST_NEIGHBOR
-            // nearest neighbor
-            pixel[0] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 0);
-            pixel[1] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 1);
-            pixel[2] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 2);
-#else
-            // bilinear interpolation
-            Vec3d pix = pano.bilinear<Vec3d>(texc[0] * (pano.width()-1), (texc[1]) * (pano.height()-1));
-            pixel[0] = (unsigned char)pix[0];
-            pixel[1] = (unsigned char)pix[1];
-            pixel[2] = (unsigned char)pix[2];
-#endif
-        }
-        return pixel;
-    }
-  
-    // export to textured sphere
-    myIFS exportTexturedSphere(const double r = 1.0, const int numpts = 100)
-    {
-        myIFS result;
-        result.useTextureCoordinates = true;
-
-        const double elevationStep = (PI / numpts);
-        const double azimuthStep = (2.0*PI / numpts);
-
-
-        //const Vec3d delta1(azimuthStep, 0, 0);
-        //const Vec3d delta2(azimuthStep, elevationStep, 0);
-        //const Vec3d delta3(0, elevationStep, 0);
-        // CCW
-        const Vec3d delta1(0, elevationStep, 0);
-        const Vec3d delta2(azimuthStep, elevationStep, 0);
-        const Vec3d delta3(azimuthStep, 0, 0);
-
-        std::vector<Vec3d> point;
-        std::vector<Vec3d> color;
-
-        const Mat4 transform = pose.pose2world();
-
-        //int offset = 0; // vertex index
-        //for (int elIndex = 0; elIndex < numpts; elIndex++)
-        //{
-        //    const double e = (-PI/2) + (elIndex * PI) / (numpts-1);
-        //    for (int azIndex = 0; azIndex < numpts; ++azIndex)
-        //    {
-        //        const double a = (azIndex * 2.0 * PI) / numpts;
-        //        const Vec3d spherical(a, e, r);
-        //        // convert to vertex position (cartesian)
-        //        const Vec3d ccspos = spher2cart(spherical);
-        //        const Vec4d pos = transform * Vec4d(ccspos[0], ccspos[1], ccspos[2], 1.0);
-        //        const Vec3d v(pos[0] / pos[3], pos[1] / pos[3], pos[2] / pos[3]);
-
-        //        result.vertices.push_back(v);
-
-        //        if (elIndex < numpts - 1)
-        //        {
-        //            myIFS::IFSINDICES quad;         // vertex indices
-        //            quad.push_back(offset + azIndex);                           // a,e
-        //            quad.push_back(offset + (azIndex + 1) % numpts);            // a+1,e
-        //            quad.push_back(offset + numpts + ((azIndex+ 1) % numpts));  // a+1,e+1
-        //            quad.push_back(offset + numpts + azIndex);                  // a,e
-        //            result.faces.push_back(quad);
-
-        //        }
-        //    }
-        //    offset += numpts;
-        //}
-
-        //const Mat4 world2sphere = pose.world2pose();
-        //// create texture coordinates
-        //for (myIFS::IFSINDICES &face : result.faces)
-        //{
-        //    myIFS::IFSINDICES texc;            // texture coordinates
-        //    for (myIFS::IFSINDEX i : face)
-        //    {
-        //        texc.push_back(result.texcoordinates.size());
-        //        Vec4d V(result.vertices[i][0], result.vertices[i][1], result.vertices[i][2], 1.0);
-        //        Vec4d VS = world2sphere * V;
-        //        result.texcoordinates.push_back(spher2tex(cart2spher(Vec3d(VS[0]/VS[3], VS[1]/VS[3], VS[2]/VS[3]))));
-        //    }
-        //    result.facetexc.push_back(texc);
-        //}
-
-
-
-        for (double e = -PI / 2; e <= PI / 2; e += elevationStep)
-        {
-            for (double a = 0; a <= 2 * PI; a += azimuthStep)
-            {
-                const Vec3d spherical(a, e, r);
-#ifdef _DEBUG
-                const Vec3d cart = spher2cart(spherical);
-                const Vec3d sph2 = cart2spher(cart);
-                assert((spherical - sph2).norm() < 0.01); // validate conversion
-                const Vec2d tex = spher2tex(spherical);
-                //std::cout << " Spherical : azimuth " << spherical[0] << " elevation " << spherical[1] << " radius " << spherical[2] << std::endl;
-                //std::cout << " Texture   : X " << tex[0] << " Y " << tex[1] << std::endl;
-#endif
-
-                std::set<myIFS::IFSINDEX> face;
-                myIFS::IFSINDICES ifsface;
-                myIFS::IFSINDICES ifsfacetc;
-
-                auto insertVertex = [&face, &ifsface, &ifsfacetc](myIFS::IFSINDEX i)
-                {
-                    face.insert(i);
-                    ifsface.push_back(i);
-                    ifsfacetc.push_back(i);
-                };
-
-                auto cartesianVertex = [&transform, this](const Vec3d &spherical) -> Vec3d
-                {
-                    const Vec3d ccspos = spher2cart(spherical);
-                    const Vec4d pos = transform * Vec4d(ccspos[0], ccspos[1], ccspos[2], 1.0);
-                    return Vec3d(pos[0] / pos[3], pos[1] / pos[3], pos[2] / pos[3]);
-                };
-
-                // for OBJ export: bottom left origin -> v = 1.0 - v
-                insertVertex(result.vertex2index(cartesianVertex(spherical), spher2tex(spherical)));
-                insertVertex(result.vertex2index(cartesianVertex(spherical + delta1), spher2tex(spherical + delta1)));
-                insertVertex(result.vertex2index(cartesianVertex(spherical + delta2), spher2tex(spherical + delta2)));
-                insertVertex(result.vertex2index(cartesianVertex(spherical + delta3), spher2tex(spherical + delta3)));
-                // process only non-degenerated faces
-                if (face.size() == 4)
-                {
-                    result.faces.push_back(ifsface);
-                    result.facetexc.push_back(ifsfacetc);
-                }
-            }
-        }
-        return result;
-    }
-
-    // export to wrl pointcloud
-    myIFS exportPointCloud(const double r = 1.0, const double numpts = 100)
-    {
-        myIFS result;
-        result.useTextureCoordinates = true;
-
-        const double elevationStep = (PI / numpts);
-        const double azimuthStep = (2.0*PI / numpts);
-
-        const Vec3d delta1(azimuthStep, 0, 0);
-        const Vec3d delta2(azimuthStep, elevationStep, 0);
-        const Vec3d delta3(0, elevationStep, 0);
-        
-        std::vector<Vec3d> point;
-        std::vector<Vec3d> color;
-
-        const Mat4 modelview = pose.pose2world();
-
-        std::cout << "coloring sphere points.." << std::endl;
-
-        // create points on a sphere
-        for (double e = -PI/2; e <= PI/2; e += elevationStep)
-        {
-            for (double a = 0; a <= 2 * PI; a += azimuthStep)
-            {
-                const Vec3d spherical(a, e, r);
-                assert((cart2spher(spher2cart(spherical)) - spherical).norm() <= 0.01);
-                const Vec3d ccspos = spher2cart(spherical);
-                const Vec4d pos  = modelview * Vec4d(ccspos[0],ccspos[1],ccspos[2],1.0);
-                const Vec3d wpos = Vec3d(pos[0] / pos[3], pos[1] / pos[3], pos[2] / pos[3]);
-                RGB pcol = getColorProjection(wpos);
-                {
-                    point.push_back(wpos);
-                    color.push_back(Vec3d(pcol[0], pcol[1], pcol[2]) / 255.0);
-                }
-
-            }
-        }
-
-        std::cout << "writing wrl file.." << std::endl;
-
-        // write pointcloud file
-        std::ofstream pclfile("sphere.wrl");
-        pclfile << "#VRML V2.0 utf7" << std::endl << std::endl;
-        pclfile << "Shape {" << std::endl;
-        pclfile << "    geometry PointSet {" << std::endl;
-        pclfile << "      coord Coordinate {" << std::endl;
-        pclfile << "        point [ " << std::endl;
-        {
-            std::ostringstream ss;
-            for (auto const &P : point)
-            {
-                ss << P[0] << " " << P[1] << " " << P[2] << ",";
-            }
-            pclfile << ss.str() << std::endl;
-        }
-        pclfile << "        ]" << std::endl; // /point
-        pclfile << "      }" << std::endl; // /coordinate
-        pclfile << "      colorPerVertex TRUE" << std::endl;
-        pclfile << "      color Color {" << std::endl;
-        pclfile << "        color [" << std::endl;
-        {
-            std::ostringstream ss;
-            for (auto const &C : color)
-            {
-                ss << C[0] << " " << C[1] << " " << C[2] << ",";
-            }
-            pclfile << ss.str() << std::endl;
-        }
-        pclfile << "        ]" << std::endl; // /point
-        pclfile << "      }" << std::endl; // /cikir
-        pclfile << "    }" << std::endl; // /geometry
-        pclfile << "}" << std::endl; // /shape
-
-        return result;
-    }
-};
 
 template< class T >
 struct Quad3D
@@ -597,7 +199,7 @@ int main(int ac, char* av[])
         if (vm.count("trans"))
         {
             std::vector<double> trans = vm["trans"].as<std::vector<double> >();
-            projection.setTransformation(Vec3d(trans[0], trans[1], trans[2]));
+            projection.setPosition(Vec3d(trans[0], trans[1], trans[2]));
         }
 
         if (vm.count("rot"))
@@ -642,11 +244,11 @@ int main(int ac, char* av[])
         {
             std::string s = vm["scale"].as<std::string>();
             transform(s.begin(), s.end(), s.begin(), toupper);
-            if (s.compare("MM") == 0) scalefactor = 0.001;
-            if (s.compare("CM") == 0) scalefactor = 0.01;
-            if (s.compare("DM") == 0) scalefactor = 0.1;
-            if (s.compare("M") == 0) scalefactor = 1.0;
-            if (s.compare("KM") == 0) scalefactor = 1000.0;
+            if (s.compare("MM") == 0) scalefactor = 1000.0;
+            if (s.compare("CM") == 0) scalefactor = 100.0;
+            if (s.compare("DM") == 0) scalefactor = 10.0;
+            if (s.compare("M") == 0)  scalefactor = 1.0;
+            if (s.compare("KM") == 0) scalefactor = 0.001;
         }
     }
     catch(std::exception& e) 
@@ -661,18 +263,23 @@ int main(int ac, char* av[])
         std::cout << "input image is " << img.width() << " x " << img.height() << " pixels." << std::endl;
         std::cout << "input geometry consists of " << ingeometry.vertices.size() << " vertices and " << ingeometry.faces.size() << " faces." << std::endl;
         std::cout << "using a resolution of " << resolution << "mm/pixel" << std::endl;
-        
+
+        // set up resolution scale from mm to actual scale / pixel
+        resolution = resolution * scalefactor / 1000;
+
+
         // PROCESS OUTPUT
 
         if (exportSphere)
         {
-            //std::cout << "- exporting projected panorama OBJ.." << std::endl;
-            //myIFS sphere = projection.exportTexturedSphere(1.0 / scalefactor, 100);
-            //sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
-            //IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
-            //saveJPEG("sphere.jpg", projection.img());
+            double radius1m = 0.5 * scalefactor;
+            std::cout << "- exporting projected panorama OBJ.." << std::endl;
+            myIFS sphere = projection.exportTexturedSphere(radius1m, 100);
+            sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
+            IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
+            saveJPEG("sphere.jpg", projection.img());
 
-            //projection.exportPointCloud(1.0 / scalefactor, 1000);
+            projection.exportPointCloud(radius1m, 1000);
         }
 
         //std::cout << "- exporting panorama pointcloud WRL.." << std::endl;

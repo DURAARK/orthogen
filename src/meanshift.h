@@ -5,6 +5,8 @@
 #include <set>
 #include <vector>
 
+#include "types.h"
+
 namespace MEANSHIFT
 
 {

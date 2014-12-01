@@ -52,11 +52,15 @@ include_directories(${CMAKE_BINARY_DIR}/${LIBJPEG_PATH})
 # Main Project
 #----------------------------------------------------------------------
 SET(SRC_FILES 
+    src/types.h
     src/ifs.h 
     src/image.h
-    src/main.cpp
     src/pnm.cpp 
-    src/pnm.h 
+    src/pnm.h
+    src/pose.h
+    src/projection.h
+    src/projection.cpp
+    src/main.cpp
     )
     
 ADD_EXECUTABLE(orthogen ${SRC_FILES})
