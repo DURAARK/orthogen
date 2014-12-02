@@ -9,6 +9,7 @@ IF(MSVC)
    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ot /Oy /Ob2 /GS- /arch:SSE2 /fp:fast")
    ADD_DEFINITIONS(-DUNICODE)
    ADD_DEFINITIONS(-D_UNICODE)
+   ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
 ELSE(MSVC)
    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-backtrace-limit=0 -fno-strict-aliasing")
    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -msse2 -mfpmath=sse -O3")
@@ -60,6 +61,7 @@ SET(SRC_FILES
     src/pose.h
     src/projection.h
     src/projection.cpp
+    src/quad.h
     src/main.cpp
     )
     
