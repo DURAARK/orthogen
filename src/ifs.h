@@ -95,7 +95,7 @@ namespace IFS
      }
 
      // append geometry
-     void append( const IFS other )
+     void append( const IFS &other )
      {
         const unsigned int vertexoffset = vertices.size();
         // append vertex data

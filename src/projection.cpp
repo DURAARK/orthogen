@@ -141,9 +141,6 @@ myIFS SphericalPanoramaImageProjection::exportTexturedSphere(const double r, con
     const Vec3d delta2(azimuthStep, elevationStep, 0);
     const Vec3d delta3(azimuthStep, 0, 0);
 
-    std::vector<Vec3d> point;
-    std::vector<Vec3d> color;
-
     const Mat4 transform = pose.pose2world();
     for (double e = -PI / 2; e <= PI / 2; e += elevationStep)
     {
