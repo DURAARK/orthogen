@@ -75,19 +75,19 @@ namespace IFS
      }
 
 
-     IFSINDEX vertex2index(const IFSVERTEX &v, const IFSTEXCOORD &texCoord = IFSTEXCOORD())
+     IFSINDEX vertex2index(const IFSVERTEX &v)
      {
         typename INDEXMAP::const_iterator itv = indexmap.find(v);
         if ( itv == indexmap.end())
         {
            vertices.push_back ( v );
-           if (useTextureCoordinates) 
-           {
-               texcoordinates.push_back(texCoord);
-               // OBJ origin is bottom left
-               texcoordinates.back()[1] = 1.0 - texcoordinates.back()[1];
-               assert(vertices.size() == texcoordinates.size());
-           }
+           //if (useTextureCoordinates) 
+           //{
+           //    texcoordinates.push_back(texCoord);
+           //    // OBJ origin is bottom left
+           //    texcoordinates.back()[1] = 1.0 - texcoordinates.back()[1];
+           //    assert(vertices.size() == texcoordinates.size());
+           //}
            indexmap[ v ] = vertices.size() - 1;
            return vertices.size() - 1;
         }

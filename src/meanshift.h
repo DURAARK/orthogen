@@ -1,6 +1,7 @@
 /*
  * Simple Meanshift implementation
- * 
+ * by
+ * ulrich.krispel@fraunhofer.at
  */
 
 #include <set>
@@ -11,29 +12,48 @@
 namespace MEANSHIFT
 {
 
-template < class VEC, int D > 
+// A simple utility class to find modes in a set of D-dimensional points
+// using the meanshift algorithm.
+
+template < class VECD, int D > 
 class Meanshift
 {
 private:
-    std::vector < VEC > points;
-    std::vector < VEC > window;
     
-    const double shift_threshold; // window is considered stable if 
+    const double shift_threshold;  // window is considered stable if 
                                    // shift is lesser than this threshold
 
 public:
+    struct VECDComparator {
+        bool operator()(const VECD& a, const VECD& b) const {
+            for (int d = 0; d<D; ++d)
+            {
+                if (a[d] < b[d]) { return true;  }
+                if (a[d] > b[d]) { return false; }
+            }
+            return false;   // equal
+        }
+    };
 
-    Meanshift(const double sh_th=0.1) : shift_threshold(sh_th)
+    typedef std::vector< VECD, Eigen::aligned_allocator< VECD > > VEC;
+    typedef std::map< VECD, std::set< int >, VECDComparator,Eigen::aligned_allocator< std::pair<VECD, std::set< int > > > > MAPPING;
+
+    VEC points;
+    VEC window;
+    MAPPING cluster;
+
+    Meanshift(const double sh_th=0.0) : shift_threshold(sh_th)
     {
     }
 
     // perform very simple and slow meanshift:
     // rectangular window, one window per point
-    void calculate(const VEC3 &pmin, const VEC3 &pmax, const double windowwidth)
+    bool calculate(const double windowwidth)
     {
+        if (points.empty()) return false;
         auto const inslab = [windowwidth](const double val, const double center) -> bool
         {
-            return (val < (center - windowwidth)) || (val >(center + windowwidth));
+            return (std::abs(center-val) < windowwidth);
         };
 
         std::vector<bool> converged;
@@ -42,8 +62,9 @@ public:
         window = points;
 
         bool allconverged = false;
+        int iterations = 0;
 
-        while (!allconverged)
+        while (!allconverged && ++iterations < 10000)
         {
             allconverged = true;
             int i = 0;
@@ -52,14 +73,14 @@ public:
                 // only consider windows that have not converged yet
                 if (!converged[i])
                 {
-                    std::vector<VEC3> inpoints;
+                    VEC inpoints;
                     // filter points inside window
                     for (auto const &p : points)
                     {
                       bool isInside=true;
                       for (int d=0;d<D;++d) 
                       {
-                        if (!inslab(p[d],c[d]) 
+                        if (!inslab(p[d],c[d]) )
                         { 
                           isInside=false;
                           break;
@@ -71,28 +92,36 @@ public:
                       }
                     }
                     // calculate mean shift
-                    VEC3 mean; for (int i=0;i<D;++i) mean[i]=0;
+                    VECD mean(VECD::Zero());
                     
-                    for (auto const &p : points) mean += p;
-                    mean /= (double)points.size();
+                    for (auto const &p : inpoints) mean += p;
+                    mean /= (double)inpoints.size();
 
-                    VEC3 ms = mean - c;
-                    double length2=0;
-                    for(int i=0;i<D;++i) length2+=ms[i]*ms[i];
-                    
-                    if (sqrt(length2) < shift_threshold)
+                    VECD ms = mean - c; // mean shift vector
+                    if (ms.norm() <= shift_threshold)
                     {
                         converged[i] = true;
                     }
                     else
                     {
                         allconverged = false;
-                        c += mean - c;
+                        c = mean;
                     }
                 }
                 ++i; // window index
             }
         }
+        // assume clusters to have identical position
+        if (allconverged) 
+        {
+            assert(points.size() == window.size());
+            for (int i = 0, ie = window.size(); i < ie; ++i)
+            {
+                cluster[window[i]].insert(i);
+            }
+        }
+
+        return allconverged;
     }
 
 };

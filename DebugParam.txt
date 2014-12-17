@@ -11,6 +11,8 @@ lores
 lores - autoaligned panorama
 --im=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet01\ColourOverlayExports\Scan00_AutoAlign.ppm --ig=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet01\OBJ\RansacRegisteredPlanes.obj --trans 0 0 0 --rot 0.0266818 0.00336098 0.00221603 0.999636 --res 10 --elmin=-1.570796327 --elmax=1.570796327 --exsphere 1 --exgeom 1 --scale mm
 
+lores - autoaligned panorama, CAD model
+--im=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet01\ColourOverlayExports\Scan00_AutoAlign.ppm --ig=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet01\OBJ\ModelledSpace.obj --trans 0 0 0 --rot 0.0266818 0.00336098 0.00221603 0.999636 --res 10 --elmin=-1.570796327 --elmax=1.570796327 --scale mm
 
 DATASET 2
 

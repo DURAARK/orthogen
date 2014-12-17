@@ -155,15 +155,17 @@ myIFS SphericalPanoramaImageProjection::exportTexturedSphere(const double r, con
             //std::cout << " Spherical : azimuth " << spherical[0] << " elevation " << spherical[1] << " radius " << spherical[2] << std::endl;
             //std::cout << " Texture   : X " << tex[0] << " Y " << tex[1] << std::endl;
 #endif
-            std::set<myIFS::IFSINDEX> face;
             myIFS::IFSINDICES ifsface;
             myIFS::IFSINDICES ifsfacetc;
 
-            auto insertVertex = [&face, &ifsface, &ifsfacetc](myIFS::IFSINDEX i)
+            auto insertVertex = [ &ifsface, &ifsfacetc, &result](const Vec3d &vertex, const Vec2d &texc)
             {
-                face.insert(i);
-                ifsface.push_back(i);
-                ifsfacetc.push_back(i);
+                // get vertex index
+                myIFS::IFSINDEX vi = result.vertex2index(vertex);
+                ifsface.push_back(vi);
+                // get texture coordinate index
+                result.texcoordinates.push_back(texc);
+                ifsfacetc.push_back(result.texcoordinates.size() - 1);
             };
 
             auto cartesianVertex = [&transform, this](const Vec3d &spherical) -> Vec3d
@@ -174,12 +176,12 @@ myIFS SphericalPanoramaImageProjection::exportTexturedSphere(const double r, con
             };
 
             // for OBJ export: bottom left origin -> v = 1.0 - v
-            insertVertex(result.vertex2index(cartesianVertex(spherical), spher2tex(spherical)));
-            insertVertex(result.vertex2index(cartesianVertex(spherical + delta1), spher2tex(spherical + delta1)));
-            insertVertex(result.vertex2index(cartesianVertex(spherical + delta2), spher2tex(spherical + delta2)));
-            insertVertex(result.vertex2index(cartesianVertex(spherical + delta3), spher2tex(spherical + delta3)));
+            insertVertex(cartesianVertex(spherical), spher2tex(spherical));
+            insertVertex(cartesianVertex(spherical + delta1), spher2tex(spherical + delta1));
+            insertVertex(cartesianVertex(spherical + delta2), spher2tex(spherical + delta2));
+            insertVertex(cartesianVertex(spherical + delta3), spher2tex(spherical + delta3));
             // process only non-degenerated faces
-            if (face.size() == 4)
+            if (ifsface.size() == 4)
             {
                 result.faces.push_back(ifsface);
                 result.facetexc.push_back(ifsfacetc);

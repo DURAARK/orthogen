@@ -62,6 +62,7 @@ SET(SRC_FILES
     src/projection.h
     src/projection.cpp
     src/quad.h
+    src/meanshift.h
     src/main.cpp
     )
     

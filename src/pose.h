@@ -13,6 +13,10 @@ struct Pose
     inline Pose() : O(0, 0, 0), X(-1, 0, 0), Y(0, 1, 0), Z(0, 0, 1)
     {
     }
+    inline Pose(const Vec3d &o, const Vec3d &x, const Vec3d &y, const Vec3d &z) 
+        : O(o), X(x), Y(y), Z(z)
+    {
+    }
 
     inline void applyRotation(const Quaterniond &q)
     {
@@ -41,6 +45,14 @@ struct Pose
         return M;
     }
 
+    inline Vec3d world2pose(const Vec3d &v) const
+    {
+        const Mat4 M = world2pose();
+        Vec4d V(v[0], v[1], v[2], 1.0);
+        Vec4d R = M*V;
+        return Vec3d(R[0] / R[3], R[1] / R[3], R[2] / R[3]);
+    }
+
     inline Mat4 pose2world() const
     {
         Mat4 M;
@@ -50,6 +62,15 @@ struct Pose
         M.col(3) = Vec4d(O[0], O[1], O[2], 1.0);
         return M;
     }
+
+    inline Vec3d pose2world(const Vec3d &v) const
+    {
+        const Mat4 M = pose2world();
+        Vec4d V(v[0], v[1], v[2], 1.0);
+        Vec4d R = M*V;
+        return Vec3d(R[0] / R[3], R[1] / R[3], R[2] / R[3]);
+    }
+
 
 };
 

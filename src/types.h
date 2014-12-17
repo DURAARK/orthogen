@@ -13,8 +13,11 @@ typedef Eigen::Matrix4d Mat4;
 typedef Eigen::Vector4d Vec4d;
 typedef Eigen::Vector3d Vec3d;
 typedef Eigen::Vector2d Vec2d;
+typedef Eigen::Matrix<double,1,1,0,1,1> Vec1d;
 
 typedef Eigen::Matrix< unsigned char, 3, 1 > RGB;
+typedef std::vector< Vec3d, Eigen::aligned_allocator< Vec3d > > nvector;
+
 typedef Eigen::Vector4i Vec4i;
 
 // geometry
