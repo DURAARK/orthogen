@@ -16,6 +16,10 @@ struct Quad3D
     int firstVertex;
 
     // vertices are given in CCW order
+    Quad3D()
+    {
+    }
+
     Quad3D(const T &v0, const T &v1, const T &v2, const T &v3)
     {
         // we assume that the Z direction corresponds to the up direction in world space
@@ -46,6 +50,12 @@ struct Quad3D
             default:
             std::abort();
         }
+    }
+
+    // assert that v0..v3 actually form a rectangle.
+    double area() 
+    {
+        return (V[1] - V[0]).norm() * (V[2] - V[1]).norm();
     }
 
     // resolution is <world units>/pixel

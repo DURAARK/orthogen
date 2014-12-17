@@ -114,6 +114,8 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
 
     std::vector<Triangle> triangles;
 
+    std::cout.precision(2);
+
     // extract triangles from faces
     {
         int faceid = 0;
@@ -235,30 +237,53 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
             Y = Z.cross(X);
             Y.normalize();
             Pose pose(center, X, Y, Z);
-            std::cout << pose;
+
+            // rotate around the upvector
+            // eigen quaternion: w, x, y, z
+            Quaterniond rot1deg(cos(0.5*M_PI / 180.0), Z[0] * sin(0.5*M_PI / 180.0), Z[1] * sin(0.5*M_PI / 180.0), Z[2] * sin(0.5*M_PI / 180.0));
+            
 
             // transform all triangle vertices into local coordinate system
             // and calculate AABB
+            
             // TODO: find optimal angle (rotate around Z)
-            AABB3D aabb;
-            for (const int i : dcluster.second)
+
+            Quad3Dd Q;
+            double currentarea = DBL_MAX;
+            for (int deg = 0; deg < 90; ++deg)
             {
-                const Triangle &T = tricluster[i];
-                // transform into pose coordinate system
-                aabb.insert(pose.world2pose(T.p));
-                aabb.insert(pose.world2pose(T.q));
-                aabb.insert(pose.world2pose(T.r));
+                AABB3D aabb;
+                for (const int i : dcluster.second)
+                {
+                    const Triangle &T = tricluster[i];
+                    // transform into pose coordinate system
+                    aabb.insert(pose.world2pose(T.p));
+                    aabb.insert(pose.world2pose(T.q));
+                    aabb.insert(pose.world2pose(T.r));
+                }
+                Vec3d v0 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmax[1], 0));
+                Vec3d v1 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmin[1], 0));
+                Vec3d v2 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmin[1], 0));
+                Vec3d v3 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmax[1], 0));
+                Quad3Dd quad(v0, v1, v2, v3);
+                if (quad.area() < currentarea)
+                {
+                    Q = quad;
+                    currentarea = quad.area();
+                }
+                pose.applyRotation(rot1deg);
             }
 
-            std::cout.precision(2);
-            std::cout << aabb;
+            //std::cout << pose;
+            //std::cout << aabb;
 
             // construct the quad out of this AABB
-            Vec3d v0 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmax[1], 0));
-            Vec3d v1 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmin[1], 0));
-            Vec3d v2 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmin[1], 0));
-            Vec3d v3 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmax[1], 0));
-            quads.push_back(Quad3Dd(v0, v1, v2, v3));
+            //Vec3d v0 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmax[1], 0));
+            //Vec3d v1 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmin[1], 0));
+            //Vec3d v2 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmin[1], 0));
+            //Vec3d v3 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmax[1], 0));
+            //quads.push_back(Quad3Dd(v0, v1, v2, v3));
+            quads.push_back(Q);
             std::cout << quads.back() << std::endl;
 
             //OBB3D obb(X, Y, Z);
