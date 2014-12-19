@@ -36,7 +36,7 @@ public:
     };
 
     typedef std::vector< VECD, Eigen::aligned_allocator< VECD > > VEC;
-    typedef std::map< VECD, std::set< int >, VECDComparator,Eigen::aligned_allocator< std::pair<VECD, std::set< int > > > > MAPPING;
+    typedef std::map< VECD, std::vector< int >, VECDComparator, Eigen::aligned_allocator< std::pair<VECD, std::vector< int > > > > MAPPING;
 
     VEC points;
     VEC window;
@@ -117,7 +117,7 @@ public:
             assert(points.size() == window.size());
             for (int i = 0, ie = window.size(); i < ie; ++i)
             {
-                cluster[window[i]].insert(i);
+                cluster[window[i]].push_back(i);
             }
         }
 

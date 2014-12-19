@@ -12,8 +12,11 @@
 template< class T >
 struct Quad3D
 {
-    T V[4];                     // quad coordinates, in CCW Order starting top left
-    int firstVertex;
+    T V[4];                        // quad coordinates, in CCW Order starting top left
+    Pose pose;
+    //int firstVertex;
+
+    std::vector<int> tri_id;       // mesh triangles belonging to this quad
 
     // vertices are given in CCW order
     Quad3D()
@@ -40,7 +43,7 @@ struct Quad3D
         brak.push_back(vdat(v2[2] + v3[2], 3));
         brak.push_back(vdat(v3[2] + v0[2], 0));
         std::sort(brak.begin(), brak.end(), brakComp);
-        firstVertex = brak[3].second;
+        int firstVertex = brak[3].second;
         switch (firstVertex)
         {
             case 0: V[0] = v0; V[1] = v1; V[2] = v2; V[3] = v3; break;
@@ -50,6 +53,21 @@ struct Quad3D
             default:
             std::abort();
         }
+    }
+
+    // project any 3d point into the quad plane using normal projection,
+    // and calculate texture coordinates
+    Vec2d point2tex(const Vec3d &p) const
+    {
+        Vec3d qpos = pose.world2pose(p);
+        Vec3d ll = pose.world2pose(V[1]);
+        Vec3d ru = pose.world2pose(V[3]);
+        Vec2d tc((qpos[0] - ll[0]) / (ru[0] - ll[0]), (qpos[1] - ll[1]) / (ru[1] - ll[1]));
+        if (!(tc[0] >= 0.0 && tc[0] <= 1.0 && tc[1] >= 0 && tc[1] <= 1.0))
+        {
+            std::cout << ".";
+        }
+        return tc;
     }
 
     // assert that v0..v3 actually form a rectangle.

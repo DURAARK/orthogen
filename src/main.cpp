@@ -23,7 +23,6 @@ typedef Quad3D<Vec3d> Quad3Dd;
 struct Triangle
 {
     const Vec3d p, q, r;      // vertices
-    Vec2d pt, qt, rt;         // texture coordinates
     const Vec3d m;            // mean (midpoint)
     const Vec3d n;            // normal
     const double area;
@@ -107,12 +106,10 @@ inline std::ostream & operator <<(std::ostream &os, const AABB3D &obb)
     return os;
 }
 
-void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
+void extract_quads(const myIFS &ifs, 
+    std::vector<Triangle> &triangles,
+    std::vector<Quad3Dd> &quads)
 {
-    typedef std::vector< Vec3d, Eigen::aligned_allocator< Vec3d > > vector3d;
-
-    std::vector<Triangle> triangles;
-
     std::cout.precision(2);
 
     // extract triangles from faces
@@ -230,6 +227,7 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
 
         for (auto const &dcluster : ms_distance.cluster)
         {
+            Quad3Dd Q;
             // get centroid of cluster
             Vec3d center = Vec3d::Zero();
             for (const int i : dcluster.second) { center += tricluster[i].m; }
@@ -254,12 +252,9 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
             Quaterniond rot1deg(cos(0.5*M_PI / 180.0), Z[0] * sin(0.5*M_PI / 180.0), Z[1] * sin(0.5*M_PI / 180.0), Z[2] * sin(0.5*M_PI / 180.0));
             
 
+            // OBB FIT: 
             // transform all triangle vertices into local coordinate system
-            // and calculate AABB
-            
-            // TODO: find optimal angle (rotate around Z)
-
-            Quad3Dd Q;
+            // and calculate AABB, rotate by 1° steps
             double currentarea = DBL_MAX;
             for (int deg = 0; deg < 90; ++deg)
             {
@@ -281,81 +276,19 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
                 {
                     Q = quad;
                     currentarea = quad.area();
+                    Q.pose = pose;
                 }
                 pose.applyRotation(rot1deg);
             }
+            // mark triangles of this cluster
+            Q.tri_id = dcluster.second;
+
             quads.push_back(Q);
             //std::cout << quads.back() << std::endl;
 
-            //std::cout << pose;
-            //std::cout << aabb;
-
-            // construct the quad out of this AABB
-            //Vec3d v0 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmax[1], 0));
-            //Vec3d v1 = pose.pose2world(Vec3d(aabb.bbmin[0], aabb.bbmin[1], 0));
-            //Vec3d v2 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmin[1], 0));
-            //Vec3d v3 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmax[1], 0));
-            //quads.push_back(Quad3Dd(v0, v1, v2, v3));
-
-            //OBB3D obb(X, Y, Z);
-            //for (const int i : dcluster.second)
-            //{
-            //    const Triangle &T = tricluster[i];
-            //    obb.insert(T.p);
-            //    obb.insert(T.q);
-            //    obb.insert(T.r);
-            //}
-            //std::cout << "CLUSTER: " << clusterid << std::endl;
-            //std::cout << obb << std::endl;
-            //Pose pose(obb.obbmin, obb.x, obb.y, obb.z);
-            //
-            //Mat4 mat = pose.world2pose();
-            //auto obbtransform = [&mat](const Vec3d &p) -> Vec3d
-            //{
-            //    Vec4d ph(p[0], p[1], p[2], 1.0);
-            //    Vec4d rh = mat * ph;
-            //    return Vec3d(rh[0] / rh[3], rh[1] / rh[3], rh[2] / rh[3]);
-            //};
-
-            //std::cout << "##### triangle points:" << std::endl;
-            //    for (const int i : dcluster.second)
-            //{
-            //    const Triangle &T = tricluster[i];
-            //    std::cout << T.p << " " << T.q << " " << T.r << std::endl;
-            //    //std::cout << obbtransform(T.p) << " " << obbtransform(T.q) << " " << obbtransform(T.r) << std::endl;
-            //}
-            //{
-            //    Vec3d v0 = obb.x * obb.obbmin[0] + obb.y*obb.obbmax[1];
-            //    Vec3d v1 = obb.x * obb.obbmin[0] + obb.y*obb.obbmin[1];
-            //    Vec3d v2 = obb.x * obb.obbmax[0] + obb.y*obb.obbmin[1];
-            //    Vec3d v3 = obb.x * obb.obbmax[0] + obb.y*obb.obbmax[1];
-            //    quads.push_back(Quad3Dd(v0,v1,v2,v3));
-            //    std::cout << quads.back() << std::endl;
-            //}
-
             ++clusterid;
         }
-        //std::cout << "brak.";
     }
-
-    //std::cout.precision(std::numeric_limits<double>::digits10);
-    //std::cout << "Detected Clusters: " << ms.cluster.size() << std::endl;
-    //for (auto const &c : ms.cluster)
-    //{
-    //    std::cout << "Cluster " << c.first[0] << "," << c.first[1] << "," << c.first[2] << " :" << c.second.size() << " points." << std::endl;
-    //}
-    //std::cout << "---" << std::endl;
-
-
-
-
-
-    // project points of each cluster onto cluster normal direction
-
-    // perform meanshift to cluster by plane
-
-    // OBB fit
-
 
 }
 
@@ -492,7 +425,6 @@ int main(int ac, char* av[])
 
 
         // PROCESS OUTPUT
-
         if (exportSphere)
         {
             double radius1m = 0.5 * scalefactor;
@@ -590,20 +522,26 @@ int main(int ac, char* av[])
         //IFS::exportOBJ(quadIFS, "quads.obj");
  
         std::vector<Quad3Dd> quads;
-        extract_quads(ingeometry, quads);
+        std::vector<Triangle> triangles;
+        extract_quads(ingeometry, triangles, quads);
+
+        myIFS outgeometry;                      // ifs with input geometry with texture coords
+        outgeometry.useTextureCoordinates = true;
+
         std::cout << "Exporting " << quads.size() << "OrthoPhotos." << std::endl;
         {
-            // Write QUAD IFS
-            myIFS quadgeometry;
+            myIFS quadgeometry;                     // ifs with orthophoto quads
+
             quadgeometry.useTextureCoordinates = true;
             quadgeometry.texcoordinates.push_back(Vec2d(0, 1));
             quadgeometry.texcoordinates.push_back(Vec2d(0, 0));
             quadgeometry.texcoordinates.push_back(Vec2d(1, 0));
             quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
             int qid = 0;
+            int triid = 0;
             for (auto const &q : quads)
             {
-                
+                // create orthophoto projection
                 Image orthophoto = q.performProjection(projection, resolution);
                 {
                     std::ostringstream oss;
@@ -612,35 +550,60 @@ int main(int ac, char* av[])
                     std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
                 }
 
-                myIFS::IFSINDICES face;
-                myIFS::IFSINDICES facetc;
-                face.push_back(quadgeometry.vertex2index(q.V[0]));
-                facetc.push_back(0);
-                face.push_back(quadgeometry.vertex2index(q.V[1]));
-                facetc.push_back(1);
-                face.push_back(quadgeometry.vertex2index(q.V[2]));
-                facetc.push_back(2);
-                face.push_back(quadgeometry.vertex2index(q.V[3]));
-                facetc.push_back(3);
-                quadgeometry.faces.push_back(face);
-                quadgeometry.facetexc.push_back(facetc);
+                std::ostringstream matname, texname;
+                matname << "ortho" << qid;
+                texname << "ortho_" << qid << ".jpg";
+
                 {
-                    std::ostringstream matname, texname;
-                    matname << "ortho" << qid;
-                    texname << "ortho_" << qid << ".jpg";
+                    // create quad geometry
+                    myIFS::IFSINDICES face;
+                    myIFS::IFSINDICES facetc;
+                    face.push_back(quadgeometry.vertex2index(q.V[0]));
+                    facetc.push_back(0);
+                    face.push_back(quadgeometry.vertex2index(q.V[1]));
+                    facetc.push_back(1);
+                    face.push_back(quadgeometry.vertex2index(q.V[2]));
+                    facetc.push_back(2);
+                    face.push_back(quadgeometry.vertex2index(q.V[3]));
+                    facetc.push_back(3);
+                    quadgeometry.faces.push_back(face);
+                    quadgeometry.facetexc.push_back(facetc);
                     quadgeometry.facematerial[qid] = IFS::Material(matname.str(), texname.str());
+                }
+
+                // create output triangles for this quad
+                for (int i : q.tri_id)
+                {
+                    myIFS::IFSINDICES face;
+                    myIFS::IFSINDICES facetc;
+                    const Triangle &T = triangles[i];
+
+                    // add triangle vertices
+                    face.push_back(outgeometry.vertex2index(T.p));
+                    facetc.push_back(outgeometry.texcoordinates.size());
+                    outgeometry.texcoordinates.push_back(q.point2tex(T.p));
+                    face.push_back(outgeometry.vertex2index(T.q));
+                    facetc.push_back(outgeometry.texcoordinates.size());
+                    outgeometry.texcoordinates.push_back(q.point2tex(T.q));
+                    face.push_back(outgeometry.vertex2index(T.r));
+                    facetc.push_back(outgeometry.texcoordinates.size());
+                    outgeometry.texcoordinates.push_back(q.point2tex(T.r));
+                    
+                    // add triangle
+                    outgeometry.faces.push_back(face);
+                    outgeometry.facetexc.push_back(facetc);
+                    outgeometry.facematerial[triid] = IFS::Material(matname.str(), texname.str());
+                    ++triid;
                 }
 
                 ++qid;
             }
             
-            IFS::exportOBJ(quadgeometry, "quadgeometry", "# OrthoGen textured model\n");
+            IFS::exportOBJ(quadgeometry, "quadgeometry", "# OrthoGen textured quads\n");
         }
 
 
         // export quads and create texture coordinates for input geometry
-
-        myIFS outgeometry = ingeometry;
 
         //outgeometry.useTextureCoordinates = true;
         //outgeometry.texcoordinates.push_back(Vec2d(0, 1));  // left top
