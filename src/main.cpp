@@ -19,16 +19,16 @@ namespace po = boost::program_options;
 
 typedef Quad3D<Vec3d> Quad3Dd;
 
-typedef Eigen::Matrix<double, 1, 50> Vec50d;
-
 
 struct Triangle
 {
     const Vec3d p, q, r;      // vertices
+    Vec2d pt, qt, rt;         // texture coordinates
     const Vec3d m;            // mean (midpoint)
     const Vec3d n;            // normal
     const double area;
-    const int    faceid;
+    const int    faceid;      // ifs face id
+    int cluster;              // quad id
 #define TA (Q-P)
 #define TB (R-P)
 #define C1 (TA[1] * TB[2] - TA[2] * TB[1])
@@ -110,7 +110,6 @@ inline std::ostream & operator <<(std::ostream &os, const AABB3D &obb)
 void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
 {
     typedef std::vector< Vec3d, Eigen::aligned_allocator< Vec3d > > vector3d;
-    typedef std::vector< Vec50d, Eigen::aligned_allocator< Vec50d > > vector50d;
 
     std::vector<Triangle> triangles;
 
@@ -157,21 +156,33 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
 
     // combine clusters by implicit plane similarity: 
     // perform mean shift on cluster main direction angles
-    assert(ms_normals.cluster.size() < 50);
-    MEANSHIFT::Meanshift<Vec50d, 50> ms_angles;
+#define MS_NORMAL_CLUSTER_MAXSIZE 50
+//#define MS_ANGLE_COS cos(5.0 * M_PI / 180.0)
+    typedef Eigen::Matrix<double, 1, MS_NORMAL_CLUSTER_MAXSIZE> Vec_NCMSd;
+    assert(ms_normals.cluster.size() < MS_NORMAL_CLUSTER_MAXSIZE);
+
+    const double MS_ANGLE_COS = cos(5.0 * M_PI / 180.0);
+    // TODO: template method with max size of cluster vector
+    MEANSHIFT::Meanshift<Vec_NCMSd, MS_NORMAL_CLUSTER_MAXSIZE> ms_angles;
     for (auto const &cluster1 : ms_normals.cluster)
     {
-        Vec50d row = Vec50d::Zero();
+        Vec_NCMSd row = Vec_NCMSd::Zero();
         int i = 0;
         for (auto const &cluster2 : ms_normals.cluster)
         {
-            row[i++] = std::abs(cluster1.first.dot(cluster2.first));
+            double s = std::abs(cluster1.first.normalized().dot(cluster2.first.normalized()));
+            row[i++] = ( s > MS_ANGLE_COS) ? 1.0 : 0.0;
         }
         ms_angles.points.push_back(row);
     }
-    ms_angles.calculate(cos(5 * M_PI / 180.0)); // 5° angle window size
-    std::cout << "found " << ms_angles.cluster.size() << " main directions:" << std::endl;
 
+    if (ms_angles.calculate(0.05))
+    {
+        std::cout << "found " << ms_angles.cluster.size() << " main directions:" << std::endl;
+    }
+    else {
+        std::cout << "cluster did not converge" << std::endl;
+    }
 
     // get all midpoints from all faces belonging to a direction 
     // and cluster by distance / orthogonal projection
@@ -188,7 +199,7 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
             {
                 // all "1" entries in the ms_angles entry
                 // row correspond to a normal cluster from ms_normals
-                if (clusterangle.first[i] > 0.95)
+                if (clusterangle.first[i] == 1.0)
                 {
                     // add all triangles from this ms_normals cluster
                     for (int id : ncluster->second)
@@ -273,6 +284,8 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
                 }
                 pose.applyRotation(rot1deg);
             }
+            quads.push_back(Q);
+            //std::cout << quads.back() << std::endl;
 
             //std::cout << pose;
             //std::cout << aabb;
@@ -283,8 +296,6 @@ void extract_quads(const myIFS &ifs, std::vector<Quad3Dd> &quads)
             //Vec3d v2 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmin[1], 0));
             //Vec3d v3 = pose.pose2world(Vec3d(aabb.bbmax[0], aabb.bbmax[1], 0));
             //quads.push_back(Quad3Dd(v0, v1, v2, v3));
-            quads.push_back(Q);
-            std::cout << quads.back() << std::endl;
 
             //OBB3D obb(X, Y, Z);
             //for (const int i : dcluster.second)
