@@ -26,7 +26,7 @@ struct Triangle
     const Vec3d m;            // mean (midpoint)
     const Vec3d n;            // normal
     const double area;
-    const int    faceid;      // ifs face id
+    const int    faceid;      // triangle id 
     int cluster;              // quad id
 #define TA (Q-P)
 #define TB (R-P)
@@ -114,7 +114,6 @@ void extract_quads(const myIFS &ifs,
 
     // extract triangles from faces
     {
-        int faceid = 0;
         for (auto &face : ifs.faces)
         {
             switch (face.size())
@@ -122,16 +121,16 @@ void extract_quads(const myIFS &ifs,
             case 3: // Triangle
                 triangles.push_back(Triangle(ifs.vertices[face[0]], 
                                              ifs.vertices[face[1]], 
-                                             ifs.vertices[face[2]], faceid));
+                                             ifs.vertices[face[2]], triangles.size()));
                 break;
             case 4: // Quad
                 triangles.push_back(Triangle(ifs.vertices[face[0]],
                                              ifs.vertices[face[1]],
-                                             ifs.vertices[face[2]], faceid));
+                                             ifs.vertices[face[2]], triangles.size()));
 
                 triangles.push_back(Triangle(ifs.vertices[face[2]],
                                              ifs.vertices[face[3]],
-                                             ifs.vertices[face[0]], faceid));
+                                             ifs.vertices[face[0]], triangles.size()));
                 break;
 
             default:
@@ -139,7 +138,6 @@ void extract_quads(const myIFS &ifs,
                     << " vertices ignored." << std::endl;
 
             }
-            ++faceid;
         }
     }
 
@@ -153,8 +151,8 @@ void extract_quads(const myIFS &ifs,
 
     // combine clusters by implicit plane similarity: 
     // perform mean shift on cluster main direction angles
+
 #define MS_NORMAL_CLUSTER_MAXSIZE 50
-//#define MS_ANGLE_COS cos(5.0 * M_PI / 180.0)
     typedef Eigen::Matrix<double, 1, MS_NORMAL_CLUSTER_MAXSIZE> Vec_NCMSd;
     assert(ms_normals.cluster.size() < MS_NORMAL_CLUSTER_MAXSIZE);
 
@@ -281,7 +279,10 @@ void extract_quads(const myIFS &ifs,
                 pose.applyRotation(rot1deg);
             }
             // mark triangles of this cluster
-            Q.tri_id = dcluster.second;
+            for (auto ti : dcluster.second)
+            {
+                Q.tri_id.push_back(tricluster[ti].faceid);
+            }
 
             quads.push_back(Q);
             //std::cout << quads.back() << std::endl;
@@ -525,6 +526,18 @@ int main(int ac, char* av[])
         std::vector<Triangle> triangles;
         extract_quads(ingeometry, triangles, quads);
 
+        {
+            myIFS triOBJ;
+            for (auto const &T : triangles)
+            {
+                myIFS::IFSINDICES tri;
+                tri.push_back(triOBJ.vertex2index(T.p));
+                tri.push_back(triOBJ.vertex2index(T.q));
+                tri.push_back(triOBJ.vertex2index(T.r));
+                triOBJ.faces.push_back(tri);
+            }
+            IFS::exportOBJ(triOBJ,"triangles.obj");
+        }
         myIFS outgeometry;                      // ifs with input geometry with texture coords
         outgeometry.useTextureCoordinates = true;
 
@@ -555,7 +568,7 @@ int main(int ac, char* av[])
                 texname << "ortho_" << qid << ".jpg";
 
                 {
-                    // create quad geometry
+                    // create quad geometry, quads always use the same texcoordinates
                     myIFS::IFSINDICES face;
                     myIFS::IFSINDICES facetc;
                     face.push_back(quadgeometry.vertex2index(q.V[0]));

@@ -134,12 +134,10 @@ namespace IFS
       os << std::endl;
       if (ifs.useTextureCoordinates)
       {
-          IFS_T::IFSINDEX tcindex = 0;
-          for (IFS_T::IFSTCCONTAINER::const_iterator
-              TC = ifs.texcoordinates.begin(), TCE = ifs.texcoordinates.end();
-              TC != TCE; ++TC, ++tcindex)
-              os << "vt " << ifs.texcoordinates[tcindex][0] << " "
-                          << ifs.texcoordinates[tcindex][1] << std::endl;
+          for (auto const &TC : ifs.texcoordinates)
+          {
+              os << "vt " << TC[0] << " " << TC[1] << std::endl;
+          }
       }
 
       int fi = 0;   // face index

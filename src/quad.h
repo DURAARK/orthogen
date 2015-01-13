@@ -60,6 +60,11 @@ struct Quad3D
     Vec2d point2tex(const Vec3d &p) const
     {
         Vec3d qpos = pose.world2pose(p);
+        if (std::abs(qpos[2]) > 0.5)
+        {
+            std::cout << "brak.";
+        }
+
         Vec3d ll = pose.world2pose(V[1]);
         Vec3d ru = pose.world2pose(V[3]);
         Vec2d tc((qpos[0] - ll[0]) / (ru[0] - ll[0]), (qpos[1] - ll[1]) / (ru[1] - ll[1]));
