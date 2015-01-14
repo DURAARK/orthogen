@@ -1,8 +1,6 @@
-/*
- * Simple Meanshift implementation
- * by
- * ulrich.krispel@fraunhofer.at
- */
+
+// Simple Meanshift implementation, for use with eigen library
+// ulrich.krispel@fraunhofer.at
 
 #include <set>
 #include <vector>
@@ -11,6 +9,8 @@
 
 namespace MEANSHIFT
 {
+
+#define MEANSHIFT_MAX_ITERATIONS 10000
 
 // A simple utility class to find modes in a set of D-dimensional points
 // using the meanshift algorithm.
@@ -64,7 +64,7 @@ public:
         bool allconverged = false;
         int iterations = 0;
 
-        while (!allconverged && ++iterations < 10000)
+        while (!allconverged && ++iterations < MEANSHIFT_MAX_ITERATIONS)
         {
             allconverged = true;
             int i = 0;

@@ -1,4 +1,8 @@
 
+//
+// ortho view generation tool
+// ulrich.krispel@fraunhofer.at
+// 
 
 #include <vector>
 #include <string>
@@ -64,32 +68,6 @@ struct AABB3D
     }
 
 };
-
-Vec3d getPerpendicular(const Vec3d &v)
-{
-    Vec3d p;
-
-    int maxdim = (std::abs(v[0]) > std::abs(v[1])) ?
-        (std::abs(v[0]) > std::abs(v[2])) ? 0 : 2 :
-        (std::abs(v[1]) > std::abs(v[2])) ? 1 : 2;
-
-    switch (maxdim)
-    {
-    case 0:
-        //px = -y - z; py = x; pz = x;
-        p << -v[1] - v[2], v[0], v[0];
-        break;
-    case 1:
-        //px = y; py = -x - z; pz = y;
-        p << v[1], -v[0] - v[2], v[1];
-        break;
-    case 2:
-        //px = z; py = z; pz = -x - y;
-        p << v[2], v[2], -v[0] - v[1];
-        break;
-    }
-    return p;
-}
 
 
 
@@ -234,15 +212,22 @@ void extract_quads(const myIFS &ifs,
             // create a local coordinate system, Z = clusterdirection
             Vec3d X, Y, Z, T;
             
+            // create orthonormal basis from clusterdirection
+            // http://orbit.dtu.dk/files/57573287/onb_frisvad_jgt2012.pdf
             Z = clusterdirection;
-            Z.normalize();
-            
-            // create X perpendicular to Z, Y perpendicular to Z and X
-            T = getPerpendicular(Z);
-            X = Z.cross(T);
-            X.normalize();
-            Y = Z.cross(X);
-            Y.normalize();
+            if (Z[2] < -0.999999f) 
+            {
+                X << 0.0, -1.0, 0.0;
+                Y << -1.0, 0.0, 0.0;
+            }
+            else 
+            {
+                const double a = 1.0 / (1.0 + Z[2]);
+                const double b = -Z[0] * Z[1] * a;
+                X << (1.0 - Z[0] * Z[0] * a), b, -Z[0];
+                Y << b, (1.0 - Z[1] * Z[1] * a), -Z[1];
+            }
+
             Pose pose(center, X, Y, Z);
 
             // rotate around the upvector
@@ -274,7 +259,6 @@ void extract_quads(const myIFS &ifs,
                 {
                     Q = quad;
                     currentarea = quad.area();
-                    Q.pose = pose;
                 }
                 pose.applyRotation(rot1deg);
             }

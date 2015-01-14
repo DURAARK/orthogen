@@ -2,7 +2,6 @@
 #define _IFS_H_
 
 // Indexed Face Set datastructure with texture coordinates
-// by Ulrich Krispel 
 // ulrich.krispel@fraunhofer.at
 
 #include <vector>

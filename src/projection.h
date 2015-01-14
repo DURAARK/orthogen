@@ -1,6 +1,9 @@
 #ifndef _PROJECTION_H_
 #define _PROJECTION_H_
 
+// image based projections
+// ulrich.krispel@fraunhofer.at
+
 #include "types.h"
 #include "pose.h"
 #include "image.h"

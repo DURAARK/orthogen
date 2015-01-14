@@ -3,11 +3,10 @@
 
 #include "projection.h"
 
-// Quad3D : a oriented quad in 3D space.
-// 
+// Quad3D : an oriented quad in 3D space.
 // The class receives the 4 coordinates in CCW order and
 // arranges the vertices such that the first coordinate is upper left.
-// 
+// ulrich.krispel@fraunhofer.at
 
 template< class T >
 struct Quad3D
@@ -53,30 +52,31 @@ struct Quad3D
             default:
             std::abort();
         }
+        calculatePose();
+    }
+
+    void calculatePose()
+    {
+        // V1 is origin, bottom left
+        T X = V[2] - V[1];
+        X.normalize();
+        T Y = V[0] - V[1];
+        Y.normalize();
+        T Z = X.cross(Y);
+        pose = Pose(V[1], X, Y, Z);
     }
 
     // project any 3d point into the quad plane using normal projection,
     // and calculate texture coordinates
-    Vec2d point2tex(const Vec3d &p) const
+    inline Vec2d point2tex(const Vec3d &p) const
     {
         Vec3d qpos = pose.world2pose(p);
-        if (std::abs(qpos[2]) > 0.5)
-        {
-            std::cout << "brak.";
-        }
-
-        Vec3d ll = pose.world2pose(V[1]);
-        Vec3d ru = pose.world2pose(V[3]);
-        Vec2d tc((qpos[0] - ll[0]) / (ru[0] - ll[0]), (qpos[1] - ll[1]) / (ru[1] - ll[1]));
-        if (!(tc[0] >= 0.0 && tc[0] <= 1.0 && tc[1] >= 0 && tc[1] <= 1.0))
-        {
-            std::cout << ".";
-        }
-        return tc;
+        Vec3d wh = pose.world2pose(V[3]);        // get width and height
+        return Vec2d(qpos[0] / wh[0], qpos[1] / wh[1]);
     }
 
     // assert that v0..v3 actually form a rectangle.
-    double area() 
+    inline double area() 
     {
         return (V[1] - V[0]).norm() * (V[2] - V[1]).norm();
     }

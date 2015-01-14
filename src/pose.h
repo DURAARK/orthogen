@@ -2,6 +2,8 @@
 #define _POSE_H_
 
 // e57 compatible camera pose 
+// ulrich.krispel@fraunhofer.at
+
 struct Pose
 {
     Vec3d O;

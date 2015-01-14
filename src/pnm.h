@@ -1,6 +1,9 @@
 #ifndef _PNM_HPP_
 #define _PNM_HPP_
 
+// Simple NetPBM image interface
+// ulrich.krispel@fraunhofer.at
+
 #include <vector>
 #include <iostream>
 #include <fstream>
