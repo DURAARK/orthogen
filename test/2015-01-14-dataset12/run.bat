@@ -1,4 +1,5 @@
-REM PARAMS run.bat <output dir:%0> <data path:%1> <pano:%2> <geometry:%3> <orientation:%4> <translation:%5> <resolution:%6> <elmin:%7> <elmax:%8> <scale:%9>
-if not exist %0 mkdir %0
-cd %0
-..\..\MSVC2013\Release\orthogen.exe --im=%1\%2 --ig=%1\%3 --rot %4 --trans %5 --res %6 --elmin %7 --elmax %8 --scale %9 --exgeom 1
+REM PARAMS run.bat <output dir:%1> <data path:%2> <pano:%3> <geometry:%4> <orientation:%5> <translation:%6> <resolution:%7> <elmin:%8> <elmax:%9> <scale:%10>
+if not exist %1 mkdir %1
+cd %1
+..\..\..\MSVC2013\Release\orthogen.exe --im=%2\%3 --ig=%2\%4 --rot %5 --trans %6 --res %7 --elevation %8 --scale %9 --exgeom 1
+cd..
