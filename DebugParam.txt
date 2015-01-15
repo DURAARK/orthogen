@@ -22,3 +22,4 @@ highres
 lores
 --im=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet02\LysLab_ColourOverlay_Scan03.ppm --ig=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet02\LysLab_RoomGeo_Scan03.obj --trans 0 0 -65.6473 --rot 0.577755 0.000204727 -0.00437552 -0.816199 --res 0.01 --elmin=-1.0463 --elmax=1.5694 --exsphere 1 --exgeom 1 --scale m
 
+--im=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet02\lyslab_panorama.jpg --ig=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet02\LysLab_RoomGeo_Scan03.obj --rot 0.3473116843 -0.005407991293 -0.003936551737 0.9377258934 --trans 0 0 -65.6473 --res 1 --elevation -1.570796327 1.570796327 --scale m --exgeom  1 --exsphere 1

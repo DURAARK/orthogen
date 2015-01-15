@@ -21,6 +21,8 @@ namespace po = boost::program_options;
 
 typedef Quad3D<Vec3d> Quad3Dd;
 
+#define WINDOW_SIZE_DISTANCE 0.1    // the window size for clustering planes (10cm)
+
 
 struct Triangle
 {
@@ -37,9 +39,9 @@ struct Triangle
 #define C3 (TA[0] * TB[1] - TA[1] * TB[0])
 
     Triangle(const Vec3d &P, const Vec3d &Q, const Vec3d &R, int face)
-        : p(P), q(Q), r(R), m((P + Q + R) / 3.0), faceid(face),
-        area(0.5*sqrt(C1*C1+C2*C2+C3*C3)),
-        n( TA.cross(TB).normalized() )
+        : p(P), q(Q), r(R), m((P + Q + R) / 3.0), 
+        n(TA.cross(TB).normalized()), area(0.5*sqrt(C1*C1 + C2*C2 + C3*C3)),
+        faceid(face), cluster(-1)        
     {
     }
 };
@@ -82,7 +84,7 @@ inline std::ostream & operator <<(std::ostream &os, const AABB3D &obb)
     return os;
 }
 
-void extract_quads(const myIFS &ifs, 
+void extract_quads(const myIFS &ifs, const double scalef,
     std::vector<Triangle> &triangles,
     std::vector<Quad3Dd> &quads)
 {
@@ -196,7 +198,8 @@ void extract_quads(const myIFS &ifs,
             d[0] = clusterdirection.dot(t.m);
             ms_distance.points.push_back(d);
         }
-        ms_distance.calculate(100);
+        ms_distance.calculate(scalef * WINDOW_SIZE_DISTANCE);  // window size = 10cm
+
         std::cout << " clusters: " << ms_distance.cluster.size() << std::endl;
 
         for (auto const &dcluster : ms_distance.cluster)
@@ -439,7 +442,7 @@ int main(int ac, char* av[])
         // EXTRACT QUADS FROM GEOMETRY
         std::vector<Quad3Dd> quads;
         std::vector<Triangle> triangles;
-        extract_quads(ingeometry, triangles, quads);
+        extract_quads(ingeometry, scalefactor, triangles, quads);
 
         myIFS outgeometry;                      // ifs with input geometry with texture coords
         outgeometry.useTextureCoordinates = true;

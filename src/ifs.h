@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <iterator>
+#include <fstream>
 
 namespace IFS
 {

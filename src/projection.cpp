@@ -105,25 +105,23 @@ RGB SphericalPanoramaImageProjection::getColorProjection(const Vec3d &pos) const
 {
     // transform point into camera coordinate system
     Vec2d texc = world2texture(pos);
+    assert(texc[0] >= 0.0 && texc[0] <= 1.0 && texc[1] >= 0.0 && texc[1] <= 1.0);
 
     // pano lookup, nearest neighbor for now.. TODO: interpolation
     RGB pixel(0,0,0);
-    if (texc[0] >= 0.0 && texc[0] < 1.0 && texc[1] >= 0.0 && texc[1] < 1.0)
-    {
-        // bilinear interpolation
+
 #ifdef NEAREST_NEIGHBOR
-        // nearest neighbor
-        pixel[0] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 0);
-        pixel[1] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 1);
-        pixel[2] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 2);
+    // nearest neighbor
+    pixel[0] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 0);
+    pixel[1] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 1);
+    pixel[2] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 2);
 #else
-        // bilinear interpolation
-        Vec3d pix = pano.bilinear<Vec3d>(texc[0] * (pano.width()-1), (texc[1]) * (pano.height()-1));
-        pixel[0] = (unsigned char)pix[0];
-        pixel[1] = (unsigned char)pix[1];
-        pixel[2] = (unsigned char)pix[2];
+    // bilinear interpolation
+    Vec3d pix = pano.bilinear<Vec3d>(texc[0] * (pano.width()-1), (texc[1]) * (pano.height()-1));
+    pixel[0] = (unsigned char)pix[0];
+    pixel[1] = (unsigned char)pix[1];
+    pixel[2] = (unsigned char)pix[2];
 #endif
-    }
     return pixel;
 }
 
