@@ -56,8 +56,6 @@ SET(SRC_FILES
     src/types.h
     src/ifs.h 
     src/image.h
-    src/pnm.cpp 
-    src/pnm.h
     src/pose.h
     src/projection.h
     src/projection.cpp

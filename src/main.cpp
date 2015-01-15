@@ -16,8 +16,6 @@
 #include "quad.h"
 #include "meanshift.h"
 
-#include "pnm.h"
-
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
@@ -317,8 +315,6 @@ int main(int ac, char* av[])
 
         if (vm.count("im")) 
         {
-            // load pnm image
-            //projection.setPanoramicImage(PNM::loadPNM(vm["im"].as<std::string>()));
             Image img;
             if (loadJPEG(vm["im"].as<std::string>().c_str(), img))
             {
