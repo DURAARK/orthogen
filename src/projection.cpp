@@ -50,7 +50,7 @@ Vec2d SphericalPanoramaImageProjection::spher2tex(const Vec3d &spherical) const
     if (azimuth > 2.0*PI) azimuth -= 2.0*PI;
     Vec2d tc(
         ((azimuth - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0])),
-        1.0-(elevation - elevationRange[0]) / (elevationRange[1] - elevationRange[0])
+        1.0 - (elevation - elevationRange[0]) / (elevationRange[1] - elevationRange[0])
         );
     // clamp to (0,0)-(1,1)
     if (tc[0] < 0.0) tc[0] = 0.0;
@@ -174,10 +174,19 @@ myIFS SphericalPanoramaImageProjection::exportTexturedSphere(const double r, con
             };
 
             // for OBJ export: bottom left origin -> v = 1.0 - v
-            insertVertex(cartesianVertex(spherical), spher2tex(spherical));
-            insertVertex(cartesianVertex(spherical + delta1), spher2tex(spherical + delta1));
-            insertVertex(cartesianVertex(spherical + delta2), spher2tex(spherical + delta2));
-            insertVertex(cartesianVertex(spherical + delta3), spher2tex(spherical + delta3));
+
+            auto IV = [this, insertVertex, cartesianVertex](const Vec3d &S)
+            {
+                const Vec3d CV = cartesianVertex(S);
+                const Vec2d TC = spher2tex(S);
+                Vec2d tc(TC[0], 1.0 - TC[1]);
+                insertVertex(CV, tc);
+            };
+            IV(spherical);
+            IV(spherical + delta1);
+            IV(spherical + delta2);
+            IV(spherical + delta3);
+
             // process only non-degenerated faces
             if (ifsface.size() == 4)
             {

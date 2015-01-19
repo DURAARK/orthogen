@@ -131,7 +131,8 @@ void extract_quads(const myIFS &ifs, const double scalef,
     // perform mean shift on cluster main direction angles
     std::cout << "found " << ms_normals.cluster.size() << " normal clusters." << std::endl;
 
-#define MS_NORMAL_CLUSTER_MAXSIZE 250
+
+#define MS_NORMAL_CLUSTER_MAXSIZE 50
     typedef Eigen::Matrix<double, 1, MS_NORMAL_CLUSTER_MAXSIZE> Vec_NCMSd;
     assert(ms_normals.cluster.size() < MS_NORMAL_CLUSTER_MAXSIZE);
 
@@ -433,11 +434,12 @@ int main(int ac, char* av[])
             double radius1m = 0.5 * scalefactor;
             std::cout << "- exporting projected panorama OBJ.." << std::endl;
             myIFS sphere = projection.exportTexturedSphere(radius1m, 100);
-            sphere.facematerial[0] = IFS::Material("sphere", "sphere.jpg");
+            sphere.materials.push_back(IFS::Material("sphere", "sphere.jpg"));
+            sphere.facematerial.push_back(sphere.materials.size() - 1);
             IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
             saveJPEG("sphere.jpg", projection.img());
 
-            projection.exportPointCloud(radius1m, 1000);
+            // projection.exportPointCloud(radius1m, 1000);
         }
 
         // EXTRACT QUADS FROM GEOMETRY
@@ -458,7 +460,6 @@ int main(int ac, char* av[])
             quadgeometry.texcoordinates.push_back(Vec2d(1, 0));
             quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
             int qid = 0;
-            int triid = 0;
             for (auto const &q : quads)
             {
                 // create orthophoto projection
@@ -489,12 +490,15 @@ int main(int ac, char* av[])
                     facetc.push_back(3);
                     quadgeometry.faces.push_back(face);
                     quadgeometry.facetexc.push_back(facetc);
-                    quadgeometry.facematerial[qid] = IFS::Material(matname.str(), texname.str());
+                    quadgeometry.materials.push_back(IFS::Material(matname.str(), texname.str()));
+                    quadgeometry.facematerial.push_back(quadgeometry.materials.size() - 1);
+                    assert(quadgeometry.faces.size() == quadgeometry.facetexc.size() && quadgeometry.faces.size() == quadgeometry.facematerial.size());
                 }
 
                 // create output triangles for this quad
                 if (exportOBJ)
                 {
+                    outgeometry.materials.push_back(IFS::Material(matname.str(), texname.str()));
                     for (int i : q.tri_id)
                     {
                         myIFS::IFSINDICES face;
@@ -515,8 +519,8 @@ int main(int ac, char* av[])
                         // add triangle
                         outgeometry.faces.push_back(face);
                         outgeometry.facetexc.push_back(facetc);
-                        outgeometry.facematerial[triid] = IFS::Material(matname.str(), texname.str());
-                        ++triid;
+                        outgeometry.facematerial.push_back(outgeometry.materials.size() - 1);
+                        assert(outgeometry.faces.size() == outgeometry.facetexc.size() && outgeometry.faces.size() == outgeometry.facematerial.size());
                     }
                 }
 

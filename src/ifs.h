@@ -52,15 +52,17 @@ namespace IFS
 
      typedef std::vector< IFSINDEX >   IFSINDICES;
      typedef std::vector< IFSINDICES > IFSICONTAINER;
-     typedef std::map<int, Material>   MATERIALMAP;
 
+     typedef std::vector< Material >   IFSMATCONTAINER;
+     
      IFSVCONTAINER  vertices;
      IFSTCCONTAINER texcoordinates;
+     IFSMATCONTAINER materials;
      IFSICONTAINER  faces;                  // vertex indices per face
      IFSICONTAINER  facetexc;               // texture coordinate indices per face
+     IFSINDICES  facematerial;              // material id per face
 
      INDEXMAP       indexmap;               // indexing of vertex coordinates
-     MATERIALMAP    facematerial;
      
      bool useTextureCoordinates;
 
@@ -140,21 +142,22 @@ namespace IFS
           }
       }
 
-      int fi = 0;   // face index
-      const Material *lastmat = 0;
+      IFS_T::IFSINDEX fi = 0;   // face index
+      IFS_T::IFSINDEX lastmatid = 0xFFFFFFFF;
 
       for (IFS_T::IFSICONTAINER::const_iterator 
           F = ifs.faces.begin(), FE = ifs.faces.end();
           F != FE; ++F, ++fi)
       {
-          IFS_T::MATERIALMAP::const_iterator itmat = ifs.facematerial.find(fi);
-          if (itmat != ifs.facematerial.end())
+          if (fi < ifs.facematerial.size())
           {
-              if (lastmat != &itmat->second)
+              if (lastmatid != ifs.facematerial[fi])
               {
-                  os << "usemtl " << itmat->second.matname << std::endl;
-                  lastmat = &itmat->second;
+                  const Material &mat = ifs.materials[ifs.facematerial[fi]];
+                  os << "usemtl " << mat.matname << std::endl;
+                  lastmatid = ifs.facematerial[fi];
               }
+
           }
          os << "f";
          IFS_T::IFSINDICES::const_iterator tcit;
@@ -200,16 +203,16 @@ namespace IFS
            {
                std::ofstream osmat(matfilename);
 
-               for (const auto &mat : ifs.facematerial)
+               for (const auto &mat : ifs.materials)
                {
-                   osmat << "newmtl " << mat.second.matname << std::endl;
+                   osmat << "newmtl " << mat.matname << std::endl;
                    osmat << " Ka 1.000 1.000 1.000" << std::endl;
                    osmat << " Kd 1.000 1.000 1.000" << std::endl;
                    osmat << " Ks 0.000 0.000 0.000" << std::endl;
                    osmat << " d 1.0" << std::endl;
                    osmat << " illum 2" << std::endl;
-                   osmat << " map_Ka " << mat.second.texturename << std::endl;
-                   osmat << " map_Kd " << mat.second.texturename << std::endl;
+                   osmat << " map_Ka " << mat.texturename << std::endl;
+                   osmat << " map_Kd " << mat.texturename << std::endl;
                    osmat << std::endl;
                }
            }
