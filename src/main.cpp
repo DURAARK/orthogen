@@ -129,8 +129,9 @@ void extract_quads(const myIFS &ifs, const double scalef,
 
     // combine clusters by implicit plane similarity: 
     // perform mean shift on cluster main direction angles
+    std::cout << "found " << ms_normals.cluster.size() << " normal clusters." << std::endl;
 
-#define MS_NORMAL_CLUSTER_MAXSIZE 50
+#define MS_NORMAL_CLUSTER_MAXSIZE 250
     typedef Eigen::Matrix<double, 1, MS_NORMAL_CLUSTER_MAXSIZE> Vec_NCMSd;
     assert(ms_normals.cluster.size() < MS_NORMAL_CLUSTER_MAXSIZE);
 

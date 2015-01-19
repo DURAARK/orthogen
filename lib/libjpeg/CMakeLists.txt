@@ -1,4 +1,8 @@
-# just place the contents of libjpeg src in this directory
+# just place the contents of libjpeg src from the independent JPEG group
+# http://www.ijg.org/ in this directory
+# 
+# ulrich.krispel@fraunhofer.at
+#
 
 project (libjpeg)
 
