@@ -21,7 +21,10 @@ namespace po = boost::program_options;
 
 typedef Quad3D<Vec3d> Quad3Dd;
 
-#define WINDOW_SIZE_DISTANCE 0.1    // the window size for clustering planes (10cm)
+// configuration variables
+double WINDOW_SIZE_NORMAL = 0.3;
+double WINDOW_SIZE_DISTANCE = 0.1;
+
 
 
 struct Triangle
@@ -92,6 +95,7 @@ void extract_quads(const myIFS &ifs, const double scalef,
 
     // extract triangles from faces
     {
+        int numtri = 0, numquad = 0, numIgnored = 0;
         for (auto &face : ifs.faces)
         {
             switch (face.size())
@@ -100,6 +104,7 @@ void extract_quads(const myIFS &ifs, const double scalef,
                 triangles.push_back(Triangle(ifs.vertices[face[0]], 
                                              ifs.vertices[face[1]], 
                                              ifs.vertices[face[2]], triangles.size()));
+                ++numtri;
                 break;
             case 4: // Quad
                 triangles.push_back(Triangle(ifs.vertices[face[0]],
@@ -109,13 +114,19 @@ void extract_quads(const myIFS &ifs, const double scalef,
                 triangles.push_back(Triangle(ifs.vertices[face[2]],
                                              ifs.vertices[face[3]],
                                              ifs.vertices[face[0]], triangles.size()));
+                ++numquad;
                 break;
 
             default:
                 std::cout << "[Warning] face with " << face.size()
                     << " vertices ignored." << std::endl;
+                ++numIgnored;
 
             }
+        }
+        std::cout << "Input Geometry consists of " << numtri << " triangles and " << numquad << " quads." << std::endl;
+        if (numIgnored > 0) {
+            std::cout << numIgnored << " elements ignored." << std::endl;
         }
     }
 
@@ -125,7 +136,7 @@ void extract_quads(const myIFS &ifs, const double scalef,
     {
         ms_normals.points.push_back(t.n);
     }
-    ms_normals.calculate(0.3);
+    ms_normals.calculate(WINDOW_SIZE_NORMAL);
 
     // combine clusters by implicit plane similarity: 
     // perform mean shift on cluster main direction angles
@@ -302,11 +313,16 @@ int main(int ac, char* av[])
             ("res", po::value< double >(), "resolution [mm/pixel]")
             ("trans", po::value< std::vector<double> >()->multitoken(), "transformation [x,y,z]")
             ("rot", po::value< std::vector<double> >()->multitoken(), "rotation quaternion [w,x,y,z]")
-            ("elevation", po::value< std::vector<double> >()->multitoken(), "elevation angle bounds [min,max]" )
+            ("elevation", po::value< std::vector<double> >()->multitoken(), "elevation angle bounds [min..max], default [-PI/2..PI/2]" )
+            ("azimuth", po::value< std::vector<double> >()->multitoken(), "azimuth angle bounds [min..max], default [0..2*PI]")
             ("exgeom", po::value< bool >(), "export (textured) geometry [OBJ]")
             ("exquad", po::value< bool >(), "export extracted quads as (textured) geometry [OBJ]")
             ("exsphere", po::value< bool >(), "export panoramic sphere [OBJ]")
-            ("scale", po::value< std::string >(), "scale of input coordinates (mm/cm/m) ");
+            ("scale", po::value< std::string >(), "scale of input coordinates (mm/cm/m) ")
+            ("ncluster", po::value< double >(), "geometry element normal direction clustering window size, default 0.3")
+            ("dcluster", po::value< double >(), "geometry element planar distance clustering window size in m, default 0.1")
+            ;
+
 
         po::variables_map vm;        
         po::store(po::parse_command_line(ac, av, desc, po::command_line_style::unix_style ^ po::command_line_style::allow_short), vm);
@@ -346,6 +362,16 @@ int main(int ac, char* av[])
             resolution = vm["res"].as<double>();
         }
 
+        if (vm.count("ncluster"))
+        {
+            WINDOW_SIZE_NORMAL = vm["ncluster"].as<double>();
+        }
+
+        if (vm.count("dcluster"))
+        {
+            WINDOW_SIZE_DISTANCE = vm["dcluster"].as<double>();
+        }
+
         if (vm.count("trans"))
         {
             std::vector<double> trans = vm["trans"].as<std::vector<double> >();
@@ -377,16 +403,12 @@ int main(int ac, char* av[])
             projection.elevationRange[1] = el[1];
         }
 
-        //if (vm.count("elmin"))
-        //{
-        //    // convert elevation to inclination
-        //    projection.elevationRange[0] = vm["elmin"].as<double>();
-        //}
-        //if (vm.count("elmax"))
-        //{
-        //    // convert elevation to inclination
-        //    projection.elevationRange[1] = vm["elmax"].as<double>();
-        //}
+        if (vm.count("azimuth"))
+        {
+            std::vector<double> az = vm["azimuth"].as<std::vector<double> >();
+            projection.azimuthRange[0] = az[0];
+            projection.azimuthRange[1] = az[1];
+        }
 
         if (vm.count("exgeom"))
         {
@@ -443,6 +465,9 @@ int main(int ac, char* av[])
         }
 
         // EXTRACT QUADS FROM GEOMETRY
+        std::cout << "Using a meanshift size of " << WINDOW_SIZE_NORMAL << " for normal clustering." << std::endl;
+        std::cout << "Using a meanshift size of " << WINDOW_SIZE_DISTANCE << " for plane distance clustering." << std::endl;
+
         std::vector<Quad3Dd> quads;
         std::vector<Triangle> triangles;
         extract_quads(ingeometry, scalefactor, triangles, quads);
@@ -468,7 +493,7 @@ int main(int ac, char* av[])
                     std::ostringstream oss;
                     oss << "ortho_" << qid << ".jpg";
                     saveJPEG(oss.str().c_str(), orthophoto);
-                    std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << std::endl;
+                    std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << " n: " << q.pose.Z << std::endl;
                 }
 
                 std::ostringstream matname, texname;
