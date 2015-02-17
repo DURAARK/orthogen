@@ -33,7 +33,7 @@ struct Triangle
     const Vec3d m;            // mean (midpoint)
     const Vec3d n;            // normal
     const double area;
-    const int    faceid;      // triangle id 
+    const size_t faceid;      // triangle id 
     int cluster;              // quad id
 #define TA (Q-P)
 #define TB (R-P)
@@ -41,7 +41,7 @@ struct Triangle
 #define C2 (TA[2] * TB[0] - TA[0] * TB[2])
 #define C3 (TA[0] * TB[1] - TA[1] * TB[0])
 
-    Triangle(const Vec3d &P, const Vec3d &Q, const Vec3d &R, int face)
+    Triangle(const Vec3d &P, const Vec3d &Q, const Vec3d &R, size_t face)
         : p(P), q(Q), r(R), m((P + Q + R) / 3.0), 
         n(TA.cross(TB).normalized()), area(0.5*sqrt(C1*C1 + C2*C2 + C3*C3)),
         faceid(face), cluster(-1)        
@@ -188,7 +188,7 @@ void extract_quads(const myIFS &ifs, const double scalef,
                 if (clusterangle.first[i] == 1.0)
                 {
                     // add all triangles from this ms_normals cluster
-                    for (int id : ncluster->second)
+                    for (size_t id : ncluster->second)
                     {
                         tricluster.push_back(triangles[id]);
                     }
@@ -220,8 +220,8 @@ void extract_quads(const myIFS &ifs, const double scalef,
             Quad3Dd Q;
             // get centroid of cluster
             Vec3d center = Vec3d::Zero();
-            for (const int i : dcluster.second) { center += tricluster[i].m; }
-            center /= dcluster.second.size();
+            for (const size_t i : dcluster.second) { center += tricluster[i].m; }
+            center /= (double) dcluster.second.size();
 
             // create a local coordinate system, Z = clusterdirection
             Vec3d X, Y, Z, T;
@@ -256,7 +256,7 @@ void extract_quads(const myIFS &ifs, const double scalef,
             for (int deg = 0; deg < 90; ++deg)
             {
                 AABB3D aabb;
-                for (const int i : dcluster.second)
+                for (const size_t i : dcluster.second)
                 {
                     const Triangle &T = tricluster[i];
                     // transform into pose coordinate system
@@ -524,7 +524,7 @@ int main(int ac, char* av[])
                 if (exportOBJ)
                 {
                     outgeometry.materials.push_back(IFS::Material(matname.str(), texname.str()));
-                    for (int i : q.tri_id)
+                    for (size_t i : q.tri_id)
                     {
                         myIFS::IFSINDICES face;
                         myIFS::IFSINDICES facetc;

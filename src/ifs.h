@@ -43,7 +43,7 @@ namespace IFS
   struct IFS
   {
      typedef IFSVERTEX IFSVTYPE;
-     typedef unsigned int IFSINDEX;
+     typedef size_t IFSINDEX;
 
      typedef std::vector< IFSVERTEX, Eigen::aligned_allocator< IFSVERTEX > > IFSVCONTAINER;        // vertex position
      typedef std::vector< IFSTEXCOORD, Eigen::aligned_allocator< IFSTEXCOORD > > IFSTCCONTAINER;   // texture coordinate
@@ -125,8 +125,8 @@ namespace IFS
   {
       os << header << std::endl;
       {
-          IFS_T::IFSINDEX vindex = 0;
-          for (IFS_T::IFSVCONTAINER::const_iterator
+          typename IFS_T::IFSINDEX vindex = 0;
+          for (typename IFS_T::IFSVCONTAINER::const_iterator
               V = ifs.vertices.begin(), VE = ifs.vertices.end();
               V != VE; ++V, ++vindex)
           {
@@ -142,10 +142,10 @@ namespace IFS
           }
       }
 
-      IFS_T::IFSINDEX fi = 0;   // face index
-      IFS_T::IFSINDEX lastmatid = 0xFFFFFFFF;
+      typename IFS_T::IFSINDEX fi = 0;   // face index
+      typename IFS_T::IFSINDEX lastmatid = 0xFFFFFFFF;
 
-      for (IFS_T::IFSICONTAINER::const_iterator 
+      for (typename IFS_T::IFSICONTAINER::const_iterator 
           F = ifs.faces.begin(), FE = ifs.faces.end();
           F != FE; ++F, ++fi)
       {
@@ -160,12 +160,12 @@ namespace IFS
 
           }
          os << "f";
-         IFS_T::IFSINDICES::const_iterator tcit;
+         typename IFS_T::IFSINDICES::const_iterator tcit;
          if (ifs.useTextureCoordinates)
          {
              tcit = ifs.facetexc[fi].begin();
          }
-         for (IFS_T::IFSINDICES::const_iterator it = F->begin(), ite = F->end();
+         for (typename IFS_T::IFSINDICES::const_iterator it = F->begin(), ite = F->end();
             it != ite; ++it)
          {
             os << " " << (*it + 1);   // obj starts counting by 1...
@@ -258,7 +258,7 @@ namespace IFS
                if ((linetoken[0].compare("v") == 0) || (linetoken[0].compare("V") == 0))
                {
                    // add vertex
-                   IFS_T::IFSVTYPE vertex;
+                   typename IFS_T::IFSVTYPE vertex;
                    for (int i = 0; i < 3; ++i)
                    {
                        std::istringstream parser(linetoken[i + 1]);
@@ -269,7 +269,7 @@ namespace IFS
                // FACE
                if ((linetoken[0].compare("f") == 0) || (linetoken[0].compare("F") == 0))
                {
-                   IFS_T::IFSINDICES face;
+                   typename IFS_T::IFSINDICES face;
                    for (unsigned i = 1; i < linetoken.size(); ++i)
                    {
                        // split by '/'

@@ -15,7 +15,7 @@ struct Quad3D
     Pose pose;
     //int firstVertex;
 
-    std::vector<int> tri_id;       // mesh triangles belonging to this quad
+    std::vector<size_t> tri_id;    // mesh triangles belonging to this quad
 
     // vertices are given in CCW order
     Quad3D()

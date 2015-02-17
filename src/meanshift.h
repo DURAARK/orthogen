@@ -36,7 +36,7 @@ public:
     };
 
     typedef std::vector< VECD, Eigen::aligned_allocator< VECD > > VEC;
-    typedef std::map< VECD, std::vector< int >, VECDComparator, Eigen::aligned_allocator< std::pair<VECD, std::vector< int > > > > MAPPING;
+    typedef std::map< VECD, std::vector< size_t >, VECDComparator, Eigen::aligned_allocator< std::pair<VECD, std::vector< size_t > > > > MAPPING;
 
     VEC points;
     VEC window;
@@ -115,7 +115,7 @@ public:
         if (allconverged) 
         {
             assert(points.size() == window.size());
-            for (int i = 0, ie = window.size(); i < ie; ++i)
+            for (size_t i = 0, ie = window.size(); i < ie; ++i)
             {
                 cluster[window[i]].push_back(i);
             }
