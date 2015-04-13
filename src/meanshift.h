@@ -1,5 +1,7 @@
 
-// Simple Meanshift implementation, for use with eigen library
+// A simple utility class to find modes in a set of D-dimensional points
+// using the meanshift algorithm.
+// For use with eigen library
 // ulrich.krispel@fraunhofer.at
 
 #include <set>
@@ -12,16 +14,13 @@ namespace MEANSHIFT
 
 #define MEANSHIFT_MAX_ITERATIONS 10000
 
-// A simple utility class to find modes in a set of D-dimensional points
-// using the meanshift algorithm.
-
 template < class VECD, int D > 
 class Meanshift
 {
 private:
     
     const double shift_threshold;  // window is considered stable if 
-                                   // shift is lesser than this threshold
+                                    // shift is lesser than this threshold
 
 public:
     struct VECDComparator {

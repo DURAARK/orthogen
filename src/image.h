@@ -1,6 +1,9 @@
 #ifndef _IMAGE_H_
 #define _IMAGE_H_
 
+// simple image class
+// ulrich.krispel@fraunhofer.at
+
 #include <vector>
 #include <cassert>
 #include "jpeglib.h"

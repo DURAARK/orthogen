@@ -1,3 +1,4 @@
+# Simple CMake file for adding static libjpeg from source
 # just place the contents of libjpeg src from the independent JPEG group
 # http://www.ijg.org/ in this directory
 # 
