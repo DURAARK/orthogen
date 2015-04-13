@@ -37,7 +37,8 @@ within this distance size into one plane (distance measure in m)
 
 Command line arguments:
 
-`OrthoGen orthographic image generator for DuraArk
+```
+OrthoGen orthographic image generator for DuraArk
 developed by Fraunhofer Austria Research GmbH
 commandline options:
   --help                show this help message
@@ -57,5 +58,6 @@ commandline options:
   --ncluster arg        geometry element normal direction clustering window
                         size, default 0.3
   --dcluster arg        geometry element planar distance clustering window size
-                        in m, default 0.1`
+                        in m, default 0.1
+```
 
