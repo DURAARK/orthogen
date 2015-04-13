@@ -225,7 +225,7 @@ namespace IFS
                          const std::string &delimiters = " ")
    {
        std::string::size_type last = str.find_first_not_of(delimiters, 0);
-       std::string::size_type i = str.find_first_of(delimiters, lastPos);
+       std::string::size_type i = str.find_first_of(delimiters, last);
 
        while (std::string::npos != last || std::string::npos != i)
        {
