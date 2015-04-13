@@ -173,7 +173,6 @@ void extract_quads(const myIFS &ifs, const double scalef,
             }
         }
 
-        // TODO: maybe a better canonical representation here?
         Vec3d clusterdirection = tricluster[0].n;
         std::cout << "direction:" << clusterdirection;
 
@@ -188,7 +187,7 @@ void extract_quads(const myIFS &ifs, const double scalef,
             d[0] = clusterdirection.dot(t.m);
             ms_distance.points.push_back(d);
         }
-        ms_distance.calculate(scalef * WINDOW_SIZE_DIST);  // window size = 10cm
+        ms_distance.calculate(scalef * WINDOW_SIZE_DIST);  // default window size = 10cm
 
         std::cout << " clusters: " << ms_distance.cluster.size() << std::endl;
 
@@ -225,7 +224,6 @@ void extract_quads(const myIFS &ifs, const double scalef,
             // eigen quaternion: w, x, y, z
             Quaterniond rot1deg(cos(0.5*M_PI / 180.0), Z[0] * sin(0.5*M_PI / 180.0), Z[1] * sin(0.5*M_PI / 180.0), Z[2] * sin(0.5*M_PI / 180.0));
             
-
             // OBB FIT: 
             // transform all triangle vertices into local coordinate system
             // and calculate AABB, rotate by 1° steps
