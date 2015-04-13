@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 PROJECT(orthogen)
+# ulrich.krispel@fraunhofer.at
 
 #----------------------------------------------------------------------
 # options and flags

@@ -12,7 +12,6 @@
 #include <limits>
 #include <boost/program_options.hpp>
 
-
 #include "types.h"
 #include "projection.h"
 #include "meanshift.h"
