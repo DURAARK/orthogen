@@ -28,9 +28,11 @@ coordinate system. This information is typically acquired from a 3D scan.
 The pose information is compatible with the pose information stored in E57
 format (translation x,y,z and quaternion rotation w,x,y,z)
 * for the quad clustering, two parameters have to be supplied:
+
 ** "normal direction clustering window size" influences the difference between normal 
 vector orientations that are clustered together, so a value means more 
 dissimilar normals will be clustered together (a value >2 makes no sense)
+
 ** "distance clustering window size" specifies which elements of similar normal direction
 are grouped into one quad, meaning that a higher value will group parallel elements
 within this distance size into one plane (distance measure in m)
