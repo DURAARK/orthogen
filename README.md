@@ -35,7 +35,7 @@ dissimilar normals will be clustered together (a value >2 makes no sense)
 are grouped into one quad, meaning that a higher value will group parallel elements
 within this distance size into one plane (distance measure in m)
 
-Command line arguments:
+**Command line arguments**
 
 ```
 OrthoGen orthographic image generator for DuraArk
@@ -61,3 +61,6 @@ commandline options:
                         in m, default 0.1
 ```
 
+**Example usage**
+
+```orthogen.exe --im=pano.jpg --ig=geometry.obj --rot 0.9592315236 -0.00766527459 -0.007286718304 0.2824234966 --trans 0 0 141.6600828 --res 1 --elevation -1.5707963 1.5707963 --scale m --exgeom  1 --exsphere 1 --exquad 1```
