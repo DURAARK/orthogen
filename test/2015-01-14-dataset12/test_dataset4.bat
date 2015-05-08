@@ -1,17 +1,17 @@
 
 REM DATASET 4.1
-SET DS1PATH=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet04\Nygade_Scan1001
+SET DS1PATH=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet04\Nygade_Scan1001
 SET DS1IM=%DS1PATH%\Nygade_Scan1001_Panorama_autoalign.jpg
 SET DS1IM2=%DS1PATH%\ColourOverlay_Nygade1001.jpg
 SET DS1MG=%DS1PATH%\FhA_Socket_Nygade_Scan1001.obj
 
 REM DATASET 4.2
-SET DS2PATH=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet04\Nygade_Scan1002
+SET DS2PATH=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet04\Nygade_Scan1002
 SET DS2IM=%DS2PATH%\Nygade_Scan1002_Panorama_02_autoalign.jpg
 SET DS2RG=%DS2PATH%\FhA_Socket_Nygade_Scan1002.obj
 
 REM DATASET 4.3
-SET DS3PATH=I:\Projects\2014-04-DuraArk\DataSets\D5_2_TestDataSet04\Nygade_Scan1005-1006
+SET DS3PATH=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet04\Nygade_Scan1005-1006
 SET DS3IM=%DS3PATH%\Nygade_Scan1005_Panorama_02_autoalign.jpg
 SET DS3RG=%DS3PATH%\FhA_Socket_Nygade_Scan1005-1006.obj
 
