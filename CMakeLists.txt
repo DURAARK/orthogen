@@ -49,6 +49,7 @@ include_directories(${CMAKE_BINARY_DIR}/${LIBJPEG_PATH})
 # Main Project
 #----------------------------------------------------------------------
 SET(SRC_FILES 
+    lib/json/json.hpp
     src/types.h
     src/ifs.h 
     src/image.h

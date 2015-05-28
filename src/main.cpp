@@ -17,6 +17,8 @@
 #include "meanshift.h"
 #include "extraction.h"
 
+#include "../lib/json/json.hpp"
+
 namespace po = boost::program_options;
 
 
