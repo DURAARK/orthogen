@@ -108,6 +108,7 @@ template <class T>
 
     typedef ImageT<unsigned char> Image;
     typedef ImageT<float> ImageF;
+    typedef ImageT<double> ImageD;
 
     // loading / writing using libJPEG
 

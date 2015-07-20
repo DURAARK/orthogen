@@ -64,3 +64,13 @@ SET(SRC_FILES
 
 ADD_EXECUTABLE(orthogen ${SRC_FILES})
 TARGET_LINK_LIBRARIES( orthogen ${Boost_LIBRARIES} libjpeg)
+
+#----------------------------------------------------------------------
+# panoalign
+#----------------------------------------------------------------------
+SET(SRC_PANOALIGN
+  panoalign/align.cpp
+  )
+ADD_EXECUTABLE(panoalign ${SRC_PANOALIGN})
+TARGET_LINK_LIBRARIES(panoalign ${Boost_LIBRARIES} libjpeg)
+
