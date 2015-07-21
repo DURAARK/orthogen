@@ -17,6 +17,7 @@ template <class T>
         unsigned int BPP;
         std::vector<T> pdata;   // pixel data
     public:
+        typedef T PixelT;
     
         ImageT() : W(0), H(0), BPP(0)
         {
@@ -47,6 +48,7 @@ template <class T>
         inline int width()     const { return W;   }
         inline int height()    const { return H;   }
         inline int bpp()       const { return BPP; }
+        inline int channels()  const { return BPP / (sizeof(T)*8); }
         inline const T *data() const { return &pdata[0]; }
         inline const std::vector<T>& getData() const { return pdata; }
         inline int buffersize() const { return bufoffset(0,H);  }
@@ -104,13 +106,102 @@ template <class T>
         {
             memset(&pdata[0], value, buffersize());
         }
+
+        template <typename CALCTYPE>
+        inline CALCTYPE mean(const int ch=0) const {
+            CALCTYPE result = 0;
+            const int w = width(), h = height();
+            for (int y = 0; y < h;++y)
+            {
+                for (int x = 0; x < w; ++x)
+                {
+                    result += (*this)(x, y, ch);
+                }
+            }
+            result /= (CALCTYPE)(w * h);
+            return result;
+        }
+
+        template <typename CALCTYPE>
+        inline CALCTYPE std(const CALCTYPE m=mean<CALCTYPE>(), const int ch = 0) const {
+            CALCTYPE result = 0;
+            const int w = width(), h = height();
+            for (int y = 0; y < h; ++y)
+            {
+                for (int x = 0; x < w; ++x)
+                {
+                    CALCTYPE v = (CALCTYPE)(*this)(x, y, ch) - m;
+                    result += v*v;
+                }
+            }
+            result /= (CALCTYPE)(w * h);
+            return sqrt(result);
+        }
+
+        template <class CallBack>
+        inline void applyPixelCB(const CallBack &cb) {
+            const int w = width(), h = height(), ch=channels();
+            for (int y = 0; y < h; ++y)
+            {
+                for (int x = 0; x < w; ++x)
+                {
+                    for (int c = 0; c < ch; ++c)
+                        (*this)(x, y, c) = cb((*this)(x, y, c));
+                }
+            }
+        }
+
+
     };
 
     typedef ImageT<unsigned char> Image;
     typedef ImageT<float> ImageF;
     typedef ImageT<double> ImageD;
 
-    // loading / writing using libJPEG
+
+    template <class SRCTYPE, class DSTTYPE>
+    DSTTYPE convertImage(const SRCTYPE &img, double factor=1.0)
+    {
+        DSTTYPE result;
+        const int w = img.width(), h = img.height(), c=img.channels();
+        result.resize(w, h, img.channels());
+#pragma omp parallel for
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                for (int i = 0; i < c; ++i)
+                    result(x, y, i) = (DSTTYPE::PixelT) (img(x, y, i) * factor);
+            }
+        }
+        return result;
+    }
+
+
+    //============================================= color conversion
+    template <class SRCTYPE, class DSTTYPE>
+    DSTTYPE convertToGrayScale(const SRCTYPE &img)
+    {
+        DSTTYPE result;
+        const int w = img.width(), h = img.height();
+        result.resize(w, h, 1);
+        
+#pragma omp parallel for
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                typename DSTTYPE::PixelT R = img(x, y, 0);
+                typename DSTTYPE::PixelT G = img(x, y, 1);
+                typename DSTTYPE::PixelT B = img(x, y, 2);
+                // convert using luminosity
+                result(x, y) = 0.21 * R + 0.72 * G + 0.07 * B;
+            }
+        }
+        return result;
+    }
+
+    //============================================= loading / writing using libJPEG
 
     template <class IMGTYPE>
     bool loadJPEG(const char *fname, IMGTYPE &img)
@@ -164,8 +255,6 @@ template <class T>
         JSAMPROW row_pointer[1];
         int row_stride;
 
-        assert(img.bpp() == 24);
-
         cinfo.err = jpeg_std_error(&jerr);
         jpeg_create_compress(&cinfo);
 
@@ -177,14 +266,14 @@ template <class T>
 
         cinfo.image_width = img.width();
         cinfo.image_height = img.height();
-        cinfo.input_components = 3;
-        cinfo.in_color_space = JCS_RGB;
+        cinfo.input_components = img.channels();
+        cinfo.in_color_space = img.channels()==3 ? JCS_RGB : JCS_GRAYSCALE;
 
         jpeg_set_defaults(&cinfo);
         jpeg_set_quality(&cinfo, quality, TRUE);
         jpeg_start_compress(&cinfo, TRUE);
 
-        row_stride = img.width() * 3;
+        row_stride = img.width() * img.channels();
         while (cinfo.next_scanline < cinfo.image_height) {
             row_pointer[0] = (JSAMPROW) &img.getData()[cinfo.next_scanline * row_stride];
             (void)jpeg_write_scanlines(&cinfo, row_pointer, 1);

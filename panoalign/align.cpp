@@ -74,19 +74,24 @@ int main(int ac, char* av[])
 
     // calculate height of R1
     int R1target = (R1*C2) / C1;
-    int padlow = round((R2 / 2.0) * (PI2 + selmin) / PI2);
-    int padhigh = round((R2 / 2.0) * (PI2 - selmax) / PI2);
+    int padlow  = (int) round((R2 / 2.0) * (PI2 + selmin) / PI2);
+    int padhigh = (int) round((R2 / 2.0) * (PI2 - selmax) / PI2);
 
     std::cout << "alignment size: " << C2 << "x" << R2 << " pixels, " 
           << " padding: " << padlow << " low " << padhigh << " high" << std::endl;
 
-    ImageD SRC, DST;
-    SRC.resize(C2, R2, 1);
-    DST.resize(C2, R2, 1);
-
-    // normalize
-
-
+    ImageD S1 = convertToGrayScale<Image,ImageD>(imsrc);
+    const double S1mean = S1.mean<double>();
+    const double S1std = S1.std<double>(S1mean);
+    {
+        auto normalizeCB = [&S1, &S1mean, &S1std](double pval)
+        {
+            return (pval - S1mean) / S1std;
+        };
+        S1.applyPixelCB(normalizeCB);
+        Image E = convertImage<ImageD, Image>(S1);
+        saveJPEG("src_gray.jpg", E);
+    }
 
 // perform SAD for horizontally shifted image, 1 pixel steps
 
