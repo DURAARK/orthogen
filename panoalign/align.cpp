@@ -25,15 +25,16 @@ int main(int ac, char* av[])
 {
     Image imsrc, imdst;
     double selmin=-PI2, selmax=PI2, delmin=-PI2, delmax=PI2;
-
+    std::string srcname = "src.jpg";
+    std::string dstname = "dst.jpg";
 
     po::options_description desc("commandline options");
 
 // read input panoramas and opening angle, convert to grayscale
     desc.add_options()
         ("help", "show this help message")
-        ("imsrc,S", po::value< std::string >()->default_value("src.jpg"), "source panoramic image [.JPG]")
-        ("imdst,D", po::value< std::string >()->default_value("dst.jpg"), "destination panoramic image [.JPG]")
+        ("imsrc,S", po::value< std::string >(), "source panoramic image [.JPG]")
+        ("imdst,D", po::value< std::string >(), "destination panoramic image [.JPG]")
         ("selrange", po::value< std::vector<double> >()->multitoken(), "source elevation angle bounds [min..max], default [-PI/2..PI/2]")
         ;
     po::variables_map vm;
@@ -47,15 +48,21 @@ int main(int ac, char* av[])
     }
     if (vm.count("selrange"))
     {
-        std::vector<double> el = vm["elevation"].as<std::vector<double> >();
+        std::vector<double> el = vm["selrange"].as<std::vector<double> >();
         selmin = el[0];
         selmax = el[1];
     }
     if (vm.count("delrange"))
     {
-        std::vector<double> el = vm["elevation"].as<std::vector<double> >();
+        std::vector<double> el = vm["delrange"].as<std::vector<double> >();
         delmin = el[0];
         delmax = el[1];
+    }
+    if (vm.count("imsrc")) { 
+        srcname = vm["imsrc"].as<std::string>(); 
+    }
+    if (vm.count("imdst")) { 
+        dstname = vm["imdst"].as<std::string>(); 
     }
 
     // load images
@@ -79,6 +86,7 @@ int main(int ac, char* av[])
     int padlow  = (int) round((R2 / 2.0) * (PI2 + selmin) / PI2);
     int padhigh = (int) round((R2 / 2.0) * (PI2 - selmax) / PI2);
 
+    std::cout << "source elevation: " << selmin << " <-> " << selmax << std::endl;
     std::cout << "alignment size: " << C2 << "x" << R2 << " pixels, " 
           << " padding: " << padlow << " low " << padhigh << " high" << std::endl;
     Image imsrcResized;
