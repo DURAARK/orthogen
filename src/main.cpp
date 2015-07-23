@@ -37,6 +37,7 @@ int main(int ac, char* av[])
     bool   exportQuadGeometry = false;
     std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
     std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
+    std::string output = "ortho";
 
     try
     {
@@ -56,6 +57,7 @@ int main(int ac, char* av[])
             ("scale", po::value< std::string >(), "scale of input coordinates (mm/cm/m), default m")
             ("ncluster", po::value< double >(), "geometry element normal direction clustering window size, default 0.3")
             ("dcluster", po::value< double >(), "geometry element planar distance clustering window size in m, default 0.1")
+            ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
             ;
 
 
@@ -167,6 +169,11 @@ int main(int ac, char* av[])
             if (s.compare("M") == 0)  scalefactor = 1.0;
             if (s.compare("KM") == 0) scalefactor = 0.001;
         }
+
+        if (vm.count("output"))
+        {
+            output = vm["output"].as<std::string>();
+        }
     }
     catch(std::exception& e) 
     {
@@ -226,7 +233,10 @@ int main(int ac, char* av[])
                 Image orthophoto = q.performProjection(projection, resolution);
                 {
                     std::ostringstream oss;
-                    oss << "ortho_" << qid << ".jpg";
+                    if (quads.size() > 1)
+                        oss << output << "_" << qid << ".jpg";
+                    else 
+                        oss << output << ".jpg";
                     saveJPEG(oss.str().c_str(), orthophoto);
                     std::cout << oss.str() << " : " << orthophoto.width() << "x" << orthophoto.height() << " n: " << q.pose.Z << std::endl;
                 }
