@@ -3,8 +3,10 @@
 // ulrich.krispel@fraunhofer.at
 // 
 
+#include <iostream>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <boost/program_options.hpp>
 
 // images/jpg
@@ -79,23 +81,62 @@ int main(int ac, char* av[])
 
     std::cout << "alignment size: " << C2 << "x" << R2 << " pixels, " 
           << " padding: " << padlow << " low " << padhigh << " high" << std::endl;
+    Image imsrcResized;
+    imsrcResized.initialize(C2, R2, imsrc.bpp());
+    std::cout << "resizing source image.." << std::endl;
+    resizeBlit(imsrc, imsrc.whole(), imsrcResized, Image::AABB2D(0, padhigh, C2, R1target));
+    saveJPEG("srcresized.jpg", imsrcResized);
 
-    ImageD S1 = convertToGrayScale<Image,ImageD>(imsrc);
-    const double S1mean = S1.mean<double>();
-    const double S1std = S1.std<double>(S1mean);
+    auto NormalizeImage = [](const Image &img) -> ImageD
     {
-        auto normalizeCB = [&S1, &S1mean, &S1std](double pval)
+        ImageD result = convertToGrayScale<Image, ImageD>(img);
+        const double mean = result.mean<double>();
+        const double std = result.std<double>(mean);
         {
-            return (pval - S1mean) / S1std;
-        };
-        S1.applyPixelCB(normalizeCB);
-        Image E = convertImage<ImageD, Image>(S1);
-        saveJPEG("src_gray.jpg", E);
-    }
+            auto normalizeCB = [&result, &mean, &std](double pval)
+            {
+                return (pval - mean) / std;
+            };
+            result.transformPixelCB(normalizeCB, result.whole());
+        }
+        return result;
+    };
+    std::cout << "normalizing source image.." << std::endl;
+    const ImageD src_n = NormalizeImage(imsrcResized);
+    std::cout << "normalizing destination image.." << std::endl;
+    const ImageD dst_n = NormalizeImage(imdst);
 
 // perform SAD for horizontally shifted image, 1 pixel steps
+    assert(src_n.width() == dst_n.width());
+    std::vector<double> SAD;
+    SAD.resize(src_n.width(), 0.0);
 
-// create output image using largest value
+    std::cout << "searching for SAD optimum.." << std::endl;
+    #pragma omp parallel for
+    for (int shift = 0; shift < dst_n.width(); ++shift)
+    {
+        auto SAD_CB = [&SAD, &src_n, &dst_n, shift](int x, int y)
+        {
+            SAD[shift] += std::abs(src_n(x, y) - dst_n((x + shift) % dst_n.width(), y) );
+        };
+        imsrc.applyPixelPosCBS(SAD_CB, imsrc.whole());
+    }
+// create output image using best guess
+    const std::vector<double>::iterator it = std::min_element(SAD.begin(), SAD.end());
+    const int shift = std::distance(SAD.begin(), it);
+    std::cout << "found optimum at shift " << shift << std::endl;
+    std::cout << "creating and writing output image..." << shift << std::endl;
+
+    Image FinalOutput;
+    FinalOutput.initialize(imdst.width(), imdst.height(), imdst.bpp());
+    auto ShiftCB = [&imdst, &FinalOutput,shift](int x, int y)
+    {
+        int x_ = (x + shift) % imdst.width();
+        for (int ch = 0, che = imdst.channels(); ch < che; ++ch)
+            FinalOutput(x, y, ch) = imdst(x_, y, ch);
+    };
+    FinalOutput.applyPixelPosCB(ShiftCB, FinalOutput.whole());
+    saveJPEG("dst_aligned.jpg", FinalOutput);
 
 // print positions of 5 largest values
 

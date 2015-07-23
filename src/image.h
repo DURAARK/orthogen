@@ -8,9 +8,22 @@
 #include <cassert>
 #include "jpeglib.h"
 
+
 template <class T>
     struct ImageT
     {
+        struct AABB2D
+        {
+            int l, t, w, h;
+            inline AABB2D(int L, int T, int W, int H) : l(L), t(T), w(W), h(H) {}
+            inline int r() const { return l + w; }
+            inline int b() const { return t + h; }
+            inline double x2rel(double x) const { return (x - (double)l) / (double)w; }
+            inline double y2rel(double y) const { return (y - (double)t) / (double)h; }
+            inline double rel2x(double rx) const { return rx*w+l; }
+            inline double rel2y(double ry) const { return ry*h+t; }
+        };
+
     protected:
         unsigned int W;
         unsigned int H;
@@ -41,7 +54,7 @@ template <class T>
         {
             unsigned const int off = bufoffset(x, y);
             assert(off < pdata.size());
-            return Vec3d(pdata[off], pdata[off + 1], pdata[off + 2]);
+            return VTYPE(pdata[off], pdata[off + 1], pdata[off + 2]);
         }
 
         inline bool isValid()  const { return W != 0 && H != 0 && BPP != 0; }
@@ -52,6 +65,7 @@ template <class T>
         inline const T *data() const { return &pdata[0]; }
         inline const std::vector<T>& getData() const { return pdata; }
         inline int buffersize() const { return bufoffset(0,H);  }
+        inline AABB2D whole()  const { return AABB2D(0, 0, W, H); }
 
         inline std::vector<T>& unsafeData() { return pdata; }
 
@@ -86,7 +100,7 @@ template <class T>
 
         // bilinear interpolation
         template <typename VTYPE>
-        inline const VTYPE bilinear(const double x, const double y, int ch = 0) 
+        inline const VTYPE bilinear(const double x, const double y) 
             const
         {
             const int l = (int)floor(x); const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
@@ -100,7 +114,25 @@ template <class T>
                    q12*(r - x)*(y - t) +
                    q22*(x - l)*(y - t);
         }
-
+        template <typename VTYPE>
+        inline const VTYPE bilinear2(const double x, const double y, const int ch = 0)
+            const
+        {
+            const int l = floor(x)<0?0:(int)floor(x); 
+            const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
+            const int t = floor(y)<0?0:(int)floor(y); 
+            const int b = t >= ((int)H - 1) ? (int)H - 1 : t + 1;
+            assert(l >= 0 && l <= W && t >= 0 && t <= H);
+            assert(r >= 0 && r <= W && b >= 0 && b <= H);
+            VTYPE q11 = (*this)(l, t, ch),
+                q21 = (*this)(r, t, ch),
+                q12 = (*this)(l, b, ch),
+                q22 = (*this)(r, b, ch);
+            return q11*(r - x)*(b - y) +
+                q21*(x - l)*(b - y) +
+                q12*(r - x)*(y - t) +
+                q22*(x - l)*(y - t);
+        }
         // clear image
         void clear(T value = 0)
         {
@@ -138,12 +170,15 @@ template <class T>
             return sqrt(result);
         }
 
+        // transforms (changes) each pixel
         template <class CallBack>
-        inline void applyPixelCB(const CallBack &cb) {
-            const int w = width(), h = height(), ch=channels();
-            for (int y = 0; y < h; ++y)
+        inline void transformPixelCB(const CallBack &cb, const AABB2D &wnd) 
+        {
+            const int ch = channels();
+
+            for (int y = wnd.t; y < wnd.b(); ++y)
             {
-                for (int x = 0; x < w; ++x)
+                for (int x = wnd.l; x < wnd.r(); ++x)
                 {
                     for (int c = 0; c < ch; ++c)
                         (*this)(x, y, c) = cb((*this)(x, y, c));
@@ -151,7 +186,47 @@ template <class T>
             }
         }
 
+        // pixel callback (parallel)
+        template <class CallBack>
+        inline void applyPixelCB(const CallBack &cb, const AABB2D &wnd) const
+        {
+            const int ch = channels();
 
+            #pragma omp parallel for
+            for (int y = wnd.t; y < wnd.b(); ++y)
+            {
+                for (int x = wnd.l; x < wnd.r(); ++x)
+                {
+                    for (int c = 0; c < ch; ++c)
+                        cb(x,y,(*this)(x, y, c));
+                }
+            }
+        }
+        // pixel callback (parallel)
+        template <class CallBack>
+        inline void applyPixelPosCB(const CallBack &cb, const AABB2D wnd) const
+        {
+#pragma omp parallel for
+            for (int y = wnd.t; y < wnd.b(); ++y)
+            {
+                for (int x = wnd.l; x < wnd.r(); ++x)
+                {
+                    cb(x, y);
+                }
+            }
+        }
+
+        template <class CallBack>
+        inline void applyPixelPosCBS(const CallBack &cb, const AABB2D wnd) const
+        {
+            for (int y = wnd.t; y < wnd.b(); ++y)
+            {
+                for (int x = wnd.l; x < wnd.r(); ++x)
+                {
+                    cb(x, y);
+                }
+            }
+        }
     };
 
     typedef ImageT<unsigned char> Image;
@@ -165,15 +240,12 @@ template <class T>
         DSTTYPE result;
         const int w = img.width(), h = img.height(), c=img.channels();
         result.resize(w, h, img.channels());
-#pragma omp parallel for
-        for (int y = 0; y < h; ++y)
+        auto CB = [](int x, int y, int c, typename SRCTYPE::PixelT v)
         {
-            for (int x = 0; x < w; ++x)
-            {
-                for (int i = 0; i < c; ++i)
-                    result(x, y, i) = (DSTTYPE::PixelT) (img(x, y, i) * factor);
-            }
-        }
+            result(x, y, c) = (DSTTYPE::PixelT) (img(x, y, c) * factor);
+        };
+        img.applyPixelCB(CB,img.whole());
+
         return result;
     }
 
@@ -185,21 +257,36 @@ template <class T>
         DSTTYPE result;
         const int w = img.width(), h = img.height();
         result.resize(w, h, 1);
-        
-#pragma omp parallel for
-        for (int y = 0; y < h; ++y)
+
+        auto CB = [&img, &result] (int x, int y) 
         {
-            for (int x = 0; x < w; ++x)
-            {
-                typename DSTTYPE::PixelT R = img(x, y, 0);
-                typename DSTTYPE::PixelT G = img(x, y, 1);
-                typename DSTTYPE::PixelT B = img(x, y, 2);
-                // convert using luminosity
-                result(x, y) = 0.21 * R + 0.72 * G + 0.07 * B;
-            }
-        }
+            typename DSTTYPE::PixelT R = img(x, y, 0);
+            typename DSTTYPE::PixelT G = img(x, y, 1);
+            typename DSTTYPE::PixelT B = img(x, y, 2);
+            // convert using luminosity
+            result(x, y) = 0.21 * R + 0.72 * G + 0.07 * B;
+        };
+        result.applyPixelPosCB(CB , result.whole() );
         return result;
     }
+
+    //============================================= resize
+    template <class IMGTYPE> void resizeBlit(
+        const IMGTYPE &src, const typename IMGTYPE::AABB2D &spos, IMGTYPE &dst, const typename IMGTYPE::AABB2D &dpos)
+    {
+        const int ch = src.channels();
+        auto CB = [&src, &dst, &spos, &dpos, ch](int x, int y)
+        {
+            for (int c = 0; c < ch; ++c)
+            {
+                double rx = dpos.x2rel(x), ry = dpos.y2rel(y);
+                double sx = spos.rel2x(rx), sy = spos.rel2y(ry);
+                dst(x, y, c) = src.bilinear2<double>(sx, sy, c);
+            }
+        };
+        dst.applyPixelPosCB(CB, dpos);
+    }
+
 
     //============================================= loading / writing using libJPEG
 
