@@ -4,9 +4,12 @@
 // 
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <map>
+#include <iomanip> 
 #include <boost/program_options.hpp>
 
 // images/jpg
@@ -19,12 +22,13 @@
 namespace po = boost::program_options;
 
 #define PI 3.14159265358979323846
-#define PI2 PI/2.0
+#define PI2 (PI/2.0)
 
 int main(int ac, char* av[])
 {
     Image imsrc, imdst;
     double selmin=-PI2, selmax=PI2, delmin=-PI2, delmax=PI2;
+    int optimum = 0;
     std::string srcname = "src.jpg";
     std::string dstname = "dst.jpg";
 
@@ -35,6 +39,8 @@ int main(int ac, char* av[])
         ("help", "show this help message")
         ("imsrc,S", po::value< std::string >(), "source panoramic image [.JPG]")
         ("imdst,D", po::value< std::string >(), "destination panoramic image [.JPG]")
+        ("writesad", po::value<int>(), "export column SAD as csv")
+        ("shift", po::value<int>(), "just perform shift")
         ("selrange", po::value< std::vector<double> >()->multitoken(), "source elevation angle bounds [min..max], default [-PI/2..PI/2]")
         ;
     po::variables_map vm;
@@ -64,18 +70,39 @@ int main(int ac, char* av[])
     if (vm.count("imdst")) { 
         dstname = vm["imdst"].as<std::string>(); 
     }
+    if (vm.count("optimum")) {
+        optimum = vm["optimum"].as<int>();
+    }
 
     // load images
-    std::cout << "loading " << vm["imsrc"].as<std::string>() << std::endl;
-    loadJPEG(vm["imsrc"].as<std::string>().c_str(), imsrc);
-    if (!imsrc.isValid()) {
-        return -1;
-    }
     std::cout << "loading " << vm["imdst"].as<std::string>() << std::endl;
     loadJPEG(vm["imdst"].as<std::string>().c_str(), imdst);
     if (!imdst.isValid()) {
         return -1;
     }
+
+    if (vm.count("shift"))
+    {
+        const int shift = vm["shift"].as<int>();
+        Image FinalOutput;
+        FinalOutput.initialize(imdst.width(), imdst.height(), imdst.bpp());
+        auto ShiftCB = [&imdst, &FinalOutput, shift](int x, int y)
+        {
+            int x_ = (x + shift) % imdst.width();
+            for (int ch = 0, che = imdst.channels(); ch < che; ++ch)
+                FinalOutput(x, y, ch) = imdst(x_, y, ch);
+        };
+        FinalOutput.applyPixelPosCB(ShiftCB, FinalOutput.whole());
+        saveJPEG("dst_aligned.jpg", FinalOutput);
+        return 0;
+    }
+
+    std::cout << "loading " << vm["imsrc"].as<std::string>() << std::endl;
+    loadJPEG(vm["imsrc"].as<std::string>().c_str(), imsrc);
+    if (!imsrc.isValid()) {
+        return -1;
+    }
+
 
     // resample and normalize
     int R1 = imsrc.height(), C1 = imsrc.width();
@@ -129,10 +156,35 @@ int main(int ac, char* av[])
         };
         imsrc.applyPixelPosCBS(SAD_CB, imsrc.whole());
     }
-// create output image using best guess
+
+    /*
+    // create output image using best guess
     const std::vector<double>::iterator it = std::min_element(SAD.begin(), SAD.end());
     const int shift = std::distance(SAD.begin(), it);
-    std::cout << "found optimum at shift " << shift << std::endl;
+    */
+
+    if (vm.count("writesad")) {
+        std::ofstream of("sad.csv");
+        for (int i = 0, ie = SAD.size(); i < ie; ++i)
+        {
+            of << i << "; " << std::fixed << std::setprecision(12) << SAD[i] << std::endl;
+        }
+    }
+
+    // put into map (sort)
+    std::map<double, int> sapcost;
+    for (int i = 0, ie = SAD.size(); i < ie; ++i)
+    {
+        sapcost[SAD[i]] = i;
+    }
+    
+    auto it = sapcost.begin();
+    for (int i = 0; i < optimum; ++i)
+    {
+        ++it;
+    }
+    const int shift = it->second;
+    std::cout << "found optimum " << optimum << " at shift " << shift << std::endl;
     std::cout << "creating and writing output image..." << shift << std::endl;
 
     Image FinalOutput;
