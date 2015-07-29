@@ -98,7 +98,7 @@ template <class T>
             return pdata[bufoffset(x, y) + ch];
         }
 
-        // bilinear interpolation
+        // bilinear interpolation using a single channel
         template <typename VTYPE>
         inline const VTYPE bilinear(const double x, const double y) 
             const
@@ -114,6 +114,7 @@ template <class T>
                    q12*(r - x)*(y - t) +
                    q22*(x - l)*(y - t);
         }
+        // bilinear interpolation using a specific channel
         template <typename VTYPE>
         inline const VTYPE bilinear2(const double x, const double y, const int ch = 0)
             const

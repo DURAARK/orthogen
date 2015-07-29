@@ -6,7 +6,7 @@ PROJECT(orthogen)
 # options and flags
 #----------------------------------------------------------------------
 IF(MSVC)
-   SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ot /Oy /Ob2 /GS- /arch:SSE2 /fp:fast")
+   SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Ot /Oy /Ob2 /GS- /arch:SSE2 /fp:fast /openmp")
    ADD_DEFINITIONS(-DUNICODE)
    ADD_DEFINITIONS(-D_UNICODE)
    ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
@@ -49,7 +49,9 @@ include_directories(${CMAKE_BINARY_DIR}/${LIBJPEG_PATH})
 # Main Project
 #----------------------------------------------------------------------
 SET(SRC_FILES 
-    lib/json/json.hpp
+    #lib/json/json.hpp
+    lib/frozen/frozen.h
+    lib/frozen/frozen.c
     src/types.h
     src/ifs.h 
     src/image.h
@@ -69,6 +71,9 @@ TARGET_LINK_LIBRARIES( orthogen ${Boost_LIBRARIES} libjpeg)
 # panoalign
 #----------------------------------------------------------------------
 SET(SRC_PANOALIGN
+  src/meanshift.h
+  src/image.h
+  
   panoalign/align.cpp
   )
 ADD_EXECUTABLE(panoalign ${SRC_PANOALIGN})

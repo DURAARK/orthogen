@@ -106,6 +106,7 @@ struct Quad3D
         Image img;
         img.initialize((int)(width/resolution)+1, (int)(height/resolution)+1, 24);
 
+#pragma omp parallel for
         for (int y = 0; y < img.height(); ++y)
         {
             const T vecy = H * (y / (double)img.height());
