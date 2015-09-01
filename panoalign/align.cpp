@@ -41,6 +41,7 @@ int main(int ac, char* av[])
         ("imdst,D", po::value< std::string >(), "destination panoramic image [.JPG]")
         ("writesad", po::value<int>(), "export column SAD as csv")
         ("shift", po::value<int>(), "just perform shift")
+        ("writenormalized", po::value<int>(), "also write normalized images")
         ("selrange", po::value< std::vector<double> >()->multitoken(), "source elevation angle bounds [min..max], default [-PI/2..PI/2]")
         ;
     po::variables_map vm;
@@ -75,8 +76,8 @@ int main(int ac, char* av[])
     }
 
     // load images
-    std::cout << "loading " << vm["imdst"].as<std::string>() << std::endl;
-    loadJPEG(vm["imdst"].as<std::string>().c_str(), imdst);
+    std::cout << "loading " << dstname << std::endl;
+    loadJPEG(dstname.c_str(), imdst);
     if (!imdst.isValid()) {
         return -1;
     }
@@ -97,8 +98,8 @@ int main(int ac, char* av[])
         return 0;
     }
 
-    std::cout << "loading " << vm["imsrc"].as<std::string>() << std::endl;
-    loadJPEG(vm["imsrc"].as<std::string>().c_str(), imsrc);
+    std::cout << "loading " << srcname << std::endl;
+    loadJPEG(srcname.c_str(), imsrc);
     if (!imsrc.isValid()) {
         return -1;
     }
@@ -140,6 +141,27 @@ int main(int ac, char* av[])
     const ImageD src_n = NormalizeImage(imsrcResized);
     std::cout << "normalizing destination image.." << std::endl;
     const ImageD dst_n = NormalizeImage(imdst);
+
+    if (vm.count("writenormalized"))
+    {
+        auto writeNormalized = [](const ImageD &img, const std::string &fn)
+        {
+            Image out;
+            out.resize(img.width(), img.height(), 3);
+            const double dmin = img.min(), dmax = img.max();
+            std::cout << "min:" << dmin << " max: " << dmax;
+            auto CB = [&img, &out, dmin, dmax](int x, int y)
+            {
+                out(x, y, 0) = (img(x, y, 0) - dmin) * 255.0 / (dmax - dmin);
+                out(x, y, 1) = (img(x, y, 0) - dmin) * 255.0 / (dmax - dmin);
+                out(x, y, 2) = (img(x, y, 0) - dmin) * 255.0 / (dmax - dmin);
+            };
+            out.applyPixelPosCB(CB, out.whole());
+            saveJPEG(fn.c_str(), out);
+        };
+        writeNormalized(src_n, "src_normalized.jpg");
+        writeNormalized(dst_n, "dst_normalized.jpg");
+    }
 
 // perform SAD for horizontally shifted image, 1 pixel steps
     assert(src_n.width() == dst_n.width());
@@ -199,5 +221,9 @@ int main(int ac, char* av[])
     saveJPEG("dst_aligned.jpg", FinalOutput);
 
 // print positions of 5 largest values
-
+    it = sapcost.begin();
+    for (int i = 0; i < 5; ++i)
+    {
+        std::cout << "optimum " << i << ": at " << it->second << std::endl;
+    }
 }

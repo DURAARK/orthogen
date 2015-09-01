@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <cassert>
+#include <limits>
 #include "jpeglib.h"
 
 
@@ -144,13 +145,8 @@ template <class T>
         inline CALCTYPE mean(const int ch=0) const {
             CALCTYPE result = 0;
             const int w = width(), h = height();
-            for (int y = 0; y < h;++y)
-            {
-                for (int x = 0; x < w; ++x)
-                {
-                    result += (*this)(x, y, ch);
-                }
-            }
+            auto MeanCB = [this,&result,ch](int x,int y){ result += (*this)(x, y, ch); };
+            applyPixelPosCBS(MeanCB, whole());
             result /= (CALCTYPE)(w * h);
             return result;
         }
@@ -158,18 +154,34 @@ template <class T>
         template <typename CALCTYPE>
         inline CALCTYPE std(const CALCTYPE m=mean<CALCTYPE>(), const int ch = 0) const {
             CALCTYPE result = 0;
-            const int w = width(), h = height();
-            for (int y = 0; y < h; ++y)
-            {
-                for (int x = 0; x < w; ++x)
-                {
-                    CALCTYPE v = (CALCTYPE)(*this)(x, y, ch) - m;
-                    result += v*v;
-                }
-            }
-            result /= (CALCTYPE)(w * h);
+            auto StdCB = [this, &result,m,ch](int x, int y) {
+                CALCTYPE v = (CALCTYPE)(*this)(x, y, ch) - m;
+                result += v*v;
+            };
+            applyPixelPosCBS(StdCB, whole());
+            result /= (CALCTYPE)(W * H);
             return sqrt(result);
         }
+
+        inline PixelT min(const int ch = 0) const
+        {
+            PixelT m = std::numeric_limits<PixelT>::max();
+            auto minCB = [&m](int x, int y, PixelT v) {
+                if (v < m) m = v;
+            };
+            applyPixelCB(minCB, whole());
+            return m;
+        }
+        inline PixelT max(const int ch = 0) const
+        {
+            PixelT m = std::numeric_limits<PixelT>::min();
+            auto maxCB = [&m](int x, int y, PixelT v) {
+                if (v > m) m = v;
+            };
+            applyPixelCB(maxCB, whole());
+            return m;
+        }
+
 
         // transforms (changes) each pixel
         template <class CallBack>
@@ -216,7 +228,7 @@ template <class T>
                 }
             }
         }
-
+        // pixel callback (not parallel)
         template <class CallBack>
         inline void applyPixelPosCBS(const CallBack &cb, const AABB2D wnd) const
         {
