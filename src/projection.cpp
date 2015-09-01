@@ -38,6 +38,9 @@ bool SphericalPanoramaImageProjection::applyRotation(Quaterniond &quat)
     return true;
 }
 
+void SphericalPanoramaImageProjection::printPose(){
+    std::cout << pose << std::endl;
+}
 
 // Coordinate system conversions
 

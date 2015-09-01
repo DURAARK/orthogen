@@ -26,6 +26,7 @@ private:
     bool verbose;
 
 public:
+    std::string basename;
     Vec2d azimuthRange;
     Vec2d elevationRange;
 
@@ -38,6 +39,8 @@ public:
 
     void setPosition(const Vec3d &pos);
     bool applyRotation(Quaterniond &quat);
+
+    void printPose();
 
     // COORDINATE SYSTEM CONVERSIONS
 
