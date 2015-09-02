@@ -113,12 +113,14 @@ int main(int ac, char *av[]) {
             SphericalPanoramaImageProjection new_scan;
             new_scan.basename = tok2str(name);
             std::cout << "found scan " << new_scan.basename << std::endl;
+            // translation
             {
                 double x = tok2dbl(find_json_token(scan, "pose.translation.x"));
                 double y = tok2dbl(find_json_token(scan, "pose.translation.y"));
                 double z = tok2dbl(find_json_token(scan, "pose.translation.z"));
                 new_scan.setPosition(Vec3d(x, y, z));
             }
+            // orientation
             {
                 double w = tok2dbl(find_json_token(scan, "pose.rotation.w"));
                 double x = tok2dbl(find_json_token(scan, "pose.rotation.x"));
@@ -130,6 +132,7 @@ int main(int ac, char *av[]) {
             std::cout << "pose: ";
             new_scan.printPose();
 
+            // load image
             scans.push_back(new_scan);
         }
 
