@@ -8,63 +8,68 @@
 #include "pose.h"
 #include "image.h"
 
-// ImageProjection Interface
-class ImageProjection
+namespace OrthoGen
 {
-public:
-    virtual RGB getColorProjection(const Vec3d &pos) const = 0;
-};
+
+    // ImageProjection Interface
+    class ImageProjection
+    {
+    public:
+        virtual RGB getColorProjection(const Vec3d &pos) const = 0;
+    };
 
 
-// Spherical Panorama Image Projection
+    // Spherical Panorama Image Projection
 
-class SphericalPanoramaImageProjection : public ImageProjection
-{
-private:
-    Pose pose;
-    Image pano;
-    bool verbose;
+    class SphericalPanoramaImageProjection : public ImageProjection
+    {
+    private:
+        Pose pose;
+        Image pano;
+        bool verbose;
 
-public:
-    std::string basename;
-    Vec2d azimuthRange;
-    Vec2d elevationRange;
+    public:
+        std::string basename;
+        Vec2d azimuthRange;
+        Vec2d elevationRange;
 
-    SphericalPanoramaImageProjection();
+        SphericalPanoramaImageProjection();
 
-    bool isValid() const;
+        bool isValid() const;
 
-    void setPanoramicImage(const Image &pi);
-    const Image & img() const;
+        void setPanoramicImage(const Image &pi);
+        const Image & img() const;
 
-    void setPosition(const Vec3d &pos);
-    bool applyRotation(Quaterniond &quat);
+        void setPosition(const Vec3d &pos);
+        bool applyRotation(Quaterniond &quat);
 
-    void printPose();
+        void printPose();
 
-    // COORDINATE SYSTEM CONVERSIONS
+        // COORDINATE SYSTEM CONVERSIONS
 
-    // spherical to texture coordinate system
-    // spherical is in [azimuth | elevation | radius]
-    Vec2d spher2tex(const Vec3d &spherical) const;
+        // spherical to texture coordinate system
+        // spherical is in [azimuth | elevation | radius]
+        Vec2d spher2tex(const Vec3d &spherical) const;
 
-    // cartesian coordinates: Vec3 [ x, y, z ]
-    // spherical coordinates: Vec3 [ azimuth , elevation , radius ]
-    // azimuth: 0..2*pi, elevation: -PI/2..+PI/2, radius>0
-    Vec3d spher2cart(const Vec3d &spc) const;
+        // cartesian coordinates: Vec3 [ x, y, z ]
+        // spherical coordinates: Vec3 [ azimuth , elevation , radius ]
+        // azimuth: 0..2*pi, elevation: -PI/2..+PI/2, radius>0
+        Vec3d spher2cart(const Vec3d &spc) const;
 
-    // cartesian to spherical coordinates
-    Vec3d cart2spher(const Vec3d &cart) const;
+        // cartesian to spherical coordinates
+        Vec3d cart2spher(const Vec3d &cart) const;
 
-    // world coordinate to texture coordinate
-    Vec2d world2texture(const Vec3d &worldpos) const;
+        // world coordinate to texture coordinate
+        Vec2d world2texture(const Vec3d &worldpos) const;
 
-    RGB   getColorProjection(const Vec3d &pos) const;
-  
-    // export to textured sphere
-    myIFS exportTexturedSphere(const double r = 1.0, const int numpts = 100);
-    // export to wrl pointcloud
-    void exportPointCloud(const double r = 1.0, const double numpts = 100);
+        RGB   getColorProjection(const Vec3d &pos) const;
+
+        // export to textured sphere
+        myIFS exportTexturedSphere(const double r = 1.0, const int numpts = 100);
+        // export to wrl pointcloud
+        void exportPointCloud(const double r = 1.0, const double numpts = 100);
+    };
+
 };
 
 #endif

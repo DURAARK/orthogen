@@ -7,24 +7,29 @@
 
 #include "ifs.h"
 
-// vector and  quaternion types
-typedef Eigen::Quaternion<double> Quaterniond;
-typedef Eigen::Matrix4d Mat4;
-typedef Eigen::Vector4d Vec4d;
-typedef Eigen::Vector3d Vec3d;
-typedef Eigen::Vector2d Vec2d;
-typedef Eigen::Matrix<double,1,1,0,1,1> Vec1d;
+namespace OrthoGen
+{
 
-typedef Eigen::Matrix< unsigned char, 3, 1 > RGB;
-typedef std::vector< Vec3d, Eigen::aligned_allocator< Vec3d > > nvector;
+    // vector and  quaternion types
+    typedef Eigen::Quaternion<double> Quaterniond;
+    typedef Eigen::Matrix4d Mat4;
+    typedef Eigen::Vector4d Vec4d;
+    typedef Eigen::Vector3d Vec3d;
+    typedef Eigen::Vector2d Vec2d;
+    typedef Eigen::Matrix<double, 1, 1, 0, 1, 1> Vec1d;
 
-typedef Eigen::Vector4i Vec4i;
+    typedef Eigen::Matrix< unsigned char, 3, 1 > RGB;
+    typedef std::vector< Vec3d, Eigen::aligned_allocator< Vec3d > > nvector;
 
-// geometry
-typedef IFS::IFS< Vec3d, Vec2d > myIFS;
+    typedef Eigen::Vector4i Vec4i;
 
-// numerical constants
+    // geometry
+    typedef IFS::IFS< Vec3d, Vec2d > myIFS;
+
+    // numerical constants
 #define PI 3.141592653589793238462643
 #define PIf 3.141592653589793238462643f
+
+}
 
 #endif

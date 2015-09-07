@@ -8,6 +8,8 @@
 // arranges the vertices such that the first coordinate is upper left.
 // ulrich.krispel@fraunhofer.at
 
+namespace OrthoGen {
+
 template< class T >
 struct Quad3D
 {
@@ -158,5 +160,7 @@ template <class T> std::ostream& operator<<(std::ostream& os, const Quad3D<T> &q
     os << " first face vertex: " << q.firstVertex << std::endl;
     return os;
 }
+
+};
 
 #endif

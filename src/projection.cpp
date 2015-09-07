@@ -4,6 +4,8 @@
 #include <set>
 #include <fstream>
 
+using namespace OrthoGen;
+
 // defaults to complete sphere
 SphericalPanoramaImageProjection::SphericalPanoramaImageProjection()
     : verbose(false), azimuthRange(0, 2 * PI), elevationRange(-PI / 2, PI / 2)

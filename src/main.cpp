@@ -14,12 +14,15 @@
 
 #include <boost/program_options.hpp>
 
+#include "rapidjson/document.h"
+#include "rapidjson/filereadstream.h"   // FileReadStream
+#include "rapidjson/encodedstream.h"    // AutoUTFInputStream
+
 #include "types.h"
 #include "projection.h"
 #include "meanshift.h"
 #include "extraction.h"
 
-#include "../lib/frozen/frozen.h"
 
 namespace po = boost::program_options;
 
@@ -29,6 +32,8 @@ double WINDOW_SIZE_DISTANCE = 0.1;
 
 typedef struct json_token JSONToken;
 typedef struct json_token *JSONTokens;
+
+using namespace OrthoGen;
 
 int main(int ac, char *av[]) {
 
@@ -83,66 +88,54 @@ int main(int ac, char *av[]) {
     // - parse scans (pose, name, panorama)
 
     {
-      std::ifstream file(vm["e57metadata"].as<std::string>().c_str(),
-                         std::ios::in | std::ios::ate);
-      std::vector<char> content;
-      if (file.is_open()) {
-        std::streampos size = file.tellg();
-        content.resize(size);
-        file.seekg(0, std::ios::beg);
-        file.read(&content[0], size);
-        file.close();
-      } else {
-        std::cout << "[ERROR] could not read input file "
-                  << vm["e57metadata"].as<std::string>() << std::endl;
-        return -1;
-      }
-      JSONTokens tok_e57;
-      tok_e57 = parse_json2(&content[0], content.size());
-
-      int i = 0;
-      JSONTokens scan;
-
-      auto getScan = [&scan, &tok_e57](const int i) -> JSONTokens {
-        std::ostringstream ss;
-        ss << "e57m.e57scan[" << i << "]";
-        scan = find_json_token(tok_e57, ss.str().c_str());
-        return scan;
-      };
-      auto tok2str = [&content](const JSONTokens tok) -> std::string {
-          return std::string(tok->ptr, tok->ptr + tok->len);
-      };
-      auto tok2dbl = [&content,tok2str](const JSONTokens tok) -> double {
-          if (tok) {
-              std::istringstream ss(std::string(tok->ptr, tok->ptr + tok->len));
-              double value;
-              ss >> value;
-              return value;
-          }
-          return 0.0;
-      };
-      
-      while (scan = getScan(i)) 
-      {
-        if (JSONTokens name = find_json_token(scan, "name")) 
+        std::string e57mfn = vm["e57metadata"].as<std::string>();
+        FILE* fp = fopen(e57mfn.c_str(), "rb"); // non-Windows use "r"
+        char readBuffer[256];
+        rapidjson::FileReadStream bis(fp, readBuffer, sizeof(readBuffer));
+        rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);  // wraps bis into eis
+        rapidjson::Document e57;         // Document is GenericDocument<UTF8<> > 
+        if (e57.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis).HasParseError())
         {
-            SphericalPanoramaImageProjection new_scan;
-            new_scan.basename = tok2str(name);
-            std::cout << "found scan " << new_scan.basename << std::endl;
-            // translation
+            std::cout << "[ERROR] parsing input JSON file "
+                << vm["e57metadata"].as<std::string>()
+                << std::endl;
+        }
+        
+        fclose(fp);
+
+        const rapidjson::Value& e57m = e57["e57m"];
+        const rapidjson::Value& arr = e57["e57m"]["e57scan"];
+
+        if (!e57m.IsObject() || !arr.IsArray()) {
+            std::cout << "[ERROR] parsing input JSON file "
+                << vm["e57metadata"].as<std::string>()
+                << std::endl;
+            return -1;
+        }
+
+      {
+          for (rapidjson::SizeType i = 0, ie = arr.Size(); i < ie; ++i)
+          {
+              const rapidjson::Value& item = arr[i];
+              SphericalPanoramaImageProjection new_scan;
+
+
+              new_scan.basename = item["name"].GetString();
+              std::cout << "found scan " << new_scan.basename << std::endl;
+              // translation
+              {
+                  double x = item["pose"]["translation"]["x"].GetDouble();
+                  double y = item["pose"]["translation"]["y"].GetDouble();
+                  double z = item["pose"]["translation"]["z"].GetDouble();
+                  new_scan.setPosition(Vec3d(x, y, z));
+              }
+              // orientation
             {
-                double x = tok2dbl(find_json_token(scan, "pose.translation.x"));
-                double y = tok2dbl(find_json_token(scan, "pose.translation.y"));
-                double z = tok2dbl(find_json_token(scan, "pose.translation.z"));
-                new_scan.setPosition(Vec3d(x, y, z));
-            }
-            // orientation
-            {
-                double w = tok2dbl(find_json_token(scan, "pose.rotation.w"));
-                double x = tok2dbl(find_json_token(scan, "pose.rotation.x"));
-                double y = tok2dbl(find_json_token(scan, "pose.rotation.y"));
-                double z = tok2dbl(find_json_token(scan, "pose.rotation.z"));
-                Quaterniond quaternion(w,x,y,z);
+                double w = item["pose"]["rotation"]["w"].GetDouble();
+                double x = item["pose"]["rotation"]["x"].GetDouble();
+                double y = item["pose"]["rotation"]["y"].GetDouble();
+                double z = item["pose"]["rotation"]["z"].GetDouble();
+                Quaterniond quaternion(w, x, y, z);
                 new_scan.applyRotation(quaternion);
             }
             std::cout << "pose: ";
@@ -150,12 +143,12 @@ int main(int ac, char *av[]) {
 
             // bounds
             {
-                new_scan.elevationRange[0] = tok2dbl(find_json_token(scan, "sphericalbounds.elevation_minimum"));
-                new_scan.elevationRange[1] = tok2dbl(find_json_token(scan, "sphericalbounds.elevation_maximum"));
-                new_scan.azimuthRange[0] = tok2dbl(find_json_token(scan, "sphericalbounds.azimuth_minimum"));
-                new_scan.azimuthRange[1] = tok2dbl(find_json_token(scan, "sphericalbounds.azimuth_maximum"));
+                new_scan.elevationRange[0] = item["sphericalbounds"]["elevation_minimum"].GetDouble();
+                new_scan.elevationRange[1] = item["sphericalbounds"]["elevation_maximum"].GetDouble();
+                new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
+                new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
                 std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
-                    << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
+                          << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
             }
 
             // load panoramic image (align if not found)
@@ -170,17 +163,13 @@ int main(int ac, char *av[]) {
                     std::cout << "aligned image not found, aligning..." << std::endl;
                 }
             }
+
             scans.push_back(new_scan);
             std::cout << "-------------------------------------" << std::endl;
-        }
 
-        ++i;
+          }
       }
-
-      free(tok_e57);
     }
-
-
 
     //  if (vm.count("im")) {
     //    Image img;

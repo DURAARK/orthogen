@@ -27,6 +27,8 @@ namespace po = boost::program_options;
 //#define PI 3.14159265358979323846
 #define PI2 (PI / 2.0)
 
+using namespace OrthoGen;
+
 int main(int ac, char *av[]) {
   Image imsrc, imdst;
   double selmin = -PI2, selmax = PI2, delmin = -PI2, delmax = PI2;

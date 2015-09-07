@@ -45,13 +45,19 @@ ADD_SUBDIRECTORY(${LIBJPEG_PATH})
 include_directories(${LIBJPEG_PATH})
 include_directories(${CMAKE_BINARY_DIR}/${LIBJPEG_PATH})
 
+###### RapidJSON
+IF (NOT RAPIDJSON_INCLUDE_DIR) 
+  FIND_PATH(RAPIDJSON_INCLUDE_DIR "rapidjson/document.h" HINTS "lib/rapidjson/include")
+ENDIF()
+IF(NOT RAPIDJSON_INCLUDE_DIR)
+    MESSAGE( FATAL_ERROR "Please set RAPIDJOSN_INCLUDE_DIR")
+ENDIF()
+include_directories(${RAPIDJSON_INCLUDE_DIR})
+
 #----------------------------------------------------------------------
 # Main Project
 #----------------------------------------------------------------------
 SET(SRC_FILES 
-    #lib/json/json.hpp
-    lib/frozen/frozen.h
-    lib/frozen/frozen.c
     src/types.h
     src/ifs.h 
     src/image.h
