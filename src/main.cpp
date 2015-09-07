@@ -10,6 +10,8 @@
 #include <cmath>
 #include <iomanip>
 #include <limits>
+#include <chrono>
+
 #include <boost/program_options.hpp>
 
 #include "types.h"
@@ -41,26 +43,40 @@ int main(int ac, char *av[]) {
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
   std::string output = "ortho";
+  std::string panopath = ".\\";
 
   try {
     po::options_description desc("commandline options");
-    desc.add_options()("help", "show this help message")(
-        "walljson", po::value<std::string>(), "input wall json [.json]")(
-        "e57metadata", po::value<std::string>(), "e57 metadata json [.json]");
+    desc.add_options()
+        ("help", "show this help message")
+        ("walljson", po::value<std::string>(), "input wall json [.json]")
+        ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
+        ("panopath", po::value<std::string>(), "path to pano images")
+        ;
 
     po::variables_map vm;
     po::store(po::parse_command_line(ac, av, desc,
                                      po::command_line_style::unix_style ^
-                                         po::command_line_style::allow_short),
+                                     po::command_line_style::allow_short),
               vm);
     po::notify(vm);
 
-    if (vm.count(
-            "help")) //|| (!vm.count("walljson")) || (!vm.count("e57metadata")))
+    if (vm.count("help")) //|| (!vm.count("walljson")) || (!vm.count("e57metadata")))
     {
       std::cout << desc << "\n";
       return 0;
     }
+
+    if (vm.count("panopath"))
+    {
+        panopath = vm["panopath"].as<std::string>();
+        std::string last = panopath.substr(panopath.length() - 1, 1);
+        if (!(last.compare("\\") == 0 || last.compare("/") == 0))
+        {
+            panopath.append("/");
+        }
+    }
+
 
     // parse jsons
     // ================================================= E57 Metadata
@@ -89,7 +105,7 @@ int main(int ac, char *av[]) {
 
       auto getScan = [&scan, &tok_e57](const int i) -> JSONTokens {
         std::ostringstream ss;
-        ss << "e57_metadata.scans[" << i << "]";
+        ss << "e57m.e57scan[" << i << "]";
         scan = find_json_token(tok_e57, ss.str().c_str());
         return scan;
       };
@@ -132,8 +148,30 @@ int main(int ac, char *av[]) {
             std::cout << "pose: ";
             new_scan.printPose();
 
-            // load image
+            // bounds
+            {
+                new_scan.elevationRange[0] = tok2dbl(find_json_token(scan, "sphericalbounds.elevation_minimum"));
+                new_scan.elevationRange[1] = tok2dbl(find_json_token(scan, "sphericalbounds.elevation_maximum"));
+                new_scan.azimuthRange[0] = tok2dbl(find_json_token(scan, "sphericalbounds.azimuth_minimum"));
+                new_scan.azimuthRange[1] = tok2dbl(find_json_token(scan, "sphericalbounds.azimuth_maximum"));
+                std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
+                    << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
+            }
+
+            // load panoramic image (align if not found)
+            {
+                std::ostringstream ss;
+                ss << panopath << new_scan.basename << "_aligned.jpg";
+                Image img;
+                if (loadJPEG(ss.str().c_str(), img)) {
+                    new_scan.setPanoramicImage(img);
+                }
+                else {
+                    std::cout << "aligned image not found, aligning..." << std::endl;
+                }
+            }
             scans.push_back(new_scan);
+            std::cout << "-------------------------------------" << std::endl;
         }
 
         ++i;

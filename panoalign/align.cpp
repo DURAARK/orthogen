@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <map>
 #include <iomanip>
+#include <chrono>
+
 #include <boost/program_options.hpp>
 
 // images/jpg
@@ -22,7 +24,7 @@
 
 namespace po = boost::program_options;
 
-#define PI 3.14159265358979323846
+//#define PI 3.14159265358979323846
 #define PI2 (PI / 2.0)
 
 int main(int ac, char *av[]) {
@@ -50,7 +52,7 @@ int main(int ac, char *av[]) {
   po::variables_map vm;
   po::store(po::parse_command_line(ac, av, desc,
                                    po::command_line_style::unix_style ^
-                                       po::command_line_style::allow_short),
+                                   po::command_line_style::allow_short),
             vm);
   po::notify(vm);
 
@@ -134,7 +136,7 @@ int main(int ac, char *av[]) {
     imsrcResized.initialize(C2, R2, imsrc.bpp());
     std::cout << "resizing source image.." << std::endl;
     resizeBlit(imsrc, imsrc.whole(), imsrcResized,
-               Image::AABB2D(0, padhigh, C2, R1target));
+               Image::AABB2D(0, padhigh+y_offset, C2, R1target+y_offset));
     saveJPEG("srcresized.jpg", imsrcResized);
 
     auto NormalizeImage = [](const Image &img) -> ImageD {
@@ -176,6 +178,8 @@ int main(int ac, char *av[]) {
     assert(src_n.width() == dst_n.width());
     SAD.resize(src_n.width(), 0.0);
 
+    std::clock_t startcputime = std::clock();
+
     std::cout << "searching for SAD optimum.." << std::endl;
 #pragma omp parallel for
     for (int shift = 0; shift < dst_n.width(); ++shift) {
@@ -185,6 +189,8 @@ int main(int ac, char *av[]) {
       };
       imsrc.applyPixelPosCBS(SAD_CB, imsrc.whole());
     }
+    double cpu_duration = (std::clock() - startcputime) / (double)CLOCKS_PER_SEC;
+    std::cout << "building SAD map took " << cpu_duration << "s." << std::endl;
   } else {
     std::ifstream in("sad.csv");
 
@@ -224,36 +230,41 @@ int main(int ac, char *av[]) {
   //{
 
   //}
-
-  std::cout << "find SAD modes.." << std::endl;
-  MEANSHIFT::Meanshift<Vec1d, 1> ms_sad;
-  double sadmax = DBL_MIN, sadmin = DBL_MAX;
-  for (auto const &s : SAD) {
-    Vec1d d;
-    d[0] = s;
-    if (s > sadmax)
-      sadmax = s;
-    if (s < sadmin)
-      sadmin = s;
-    ms_sad.points.push_back(d);
-  }
-  ms_sad.calculate((sadmax - sadmin) / 10.0);
-  int i = 0;
-  for (auto cluster = ms_sad.cluster.begin(); i < 5; ++cluster, ++i) {
-    std::cout << " optimum " << i << " : " << cluster->first << std::endl;
-    double localmin = DBL_MAX;
-    int localid = -1;
-    for (auto const &p : cluster->second) {
-      if (SAD[p] < localmin) {
-        localmin = SAD[p];
-        localid = p;
+  {
+      std::clock_t startcputime = std::clock();
+      std::cout << "find meanshift SAD modes.." << std::endl;
+      MEANSHIFT::Meanshift<Vec1d, 1> ms_sad;
+      double sadmax = DBL_MIN, sadmin = DBL_MAX;
+      for (auto const &s : SAD) {
+          Vec1d d;
+          d[0] = s;
+          if (s > sadmax)
+              sadmax = s;
+          if (s < sadmin)
+              sadmin = s;
+          ms_sad.points.push_back(d);
       }
-    }
-    std::cout << " minimum: " << localmin << " [" << localid << "]"
+      ms_sad.calculate((sadmax - sadmin) / 10.0);
+      int i = 0;
+      for (auto cluster = ms_sad.cluster.begin(); i < 5; ++cluster, ++i) {
+          std::cout << " optimum " << i << " : " << cluster->first << std::endl;
+          double localmin = DBL_MAX;
+          int localid = -1;
+          for (auto const &p : cluster->second) {
+              if (SAD[p] < localmin) {
+                  localmin = SAD[p];
+                  localid = p;
+              }
+          }
+          std::cout << " minimum: " << localmin << " [" << localid << "]"
               << std::endl;
-    std::cout << std::endl;
+          std::cout << std::endl;
+      }
+      double cpu_duration = (std::clock() - startcputime) / (double)CLOCKS_PER_SEC;
+      std::cout << "building SAD map took " << cpu_duration << "s." << std::endl;
   }
 
+  std::cout << " find minimum SAD: " << std::endl;
   // put into map (sort)
   std::map<double, int> sapcost;
   for (int i = 0, ie = SAD.size(); i < ie; ++i) {

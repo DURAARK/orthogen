@@ -294,7 +294,8 @@ template <class T>
             {
                 double rx = dpos.x2rel(x), ry = dpos.y2rel(y);
                 double sx = spos.rel2x(rx), sy = spos.rel2y(ry);
-                dst(x, y, c) = src.bilinear2<double>(sx, sy, c);
+                if (x>=0 && x<dst.width() && y>=0 && y<dst.height() )
+                    dst(x, y, c) = src.bilinear2<double>(sx, sy, c);
             }
         };
         dst.applyPixelPosCB(CB, dpos);
