@@ -39,6 +39,7 @@ int main(int ac, char *av[]) {
 
   // main application state
   std::vector<SphericalPanoramaImageProjection> scans;
+  std::vector<Quad3Dd> walls;
 
   double resolution = 1.0;  // default: 1 mm/pixel
   double scalefactor = 1.0; // m
@@ -96,11 +97,10 @@ int main(int ac, char *av[]) {
         rapidjson::Document e57;         // Document is GenericDocument<UTF8<> > 
         if (e57.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis).HasParseError())
         {
-            std::cout << "[ERROR] parsing input JSON file "
-                << vm["e57metadata"].as<std::string>()
-                << std::endl;
+            std::cout << "[ERROR] parsing input JSON file " 
+                << e57mfn << std::endl;
+            return -1;
         }
-        
         fclose(fp);
 
         const rapidjson::Value& e57m = e57["e57m"];
@@ -108,8 +108,7 @@ int main(int ac, char *av[]) {
 
         if (!e57m.IsObject() || !arr.IsArray()) {
             std::cout << "[ERROR] parsing input JSON file "
-                << vm["e57metadata"].as<std::string>()
-                << std::endl;
+                << e57mfn << std::endl;
             return -1;
         }
 
@@ -166,9 +165,161 @@ int main(int ac, char *av[]) {
 
             scans.push_back(new_scan);
             std::cout << "-------------------------------------" << std::endl;
-
           }
       }
+    }
+
+    // ---------------------------------------------- WALL JSON
+    {
+        std::string wallfn = vm["walljson"].as<std::string>();
+        FILE* fp = fopen(wallfn.c_str(), "rb"); // non-Windows use "r"
+        char readBuffer[256];
+        rapidjson::FileReadStream bis(fp, readBuffer, sizeof(readBuffer));
+        rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);  // wraps bis into eis
+        rapidjson::Document walljson;         // Document is GenericDocument<UTF8<> > 
+        if (walljson.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis).HasParseError())
+        {
+            std::cout << "[ERROR] parsing input JSON file " << wallfn << std::endl;
+        }
+        fclose(fp);
+
+
+        const rapidjson::Value& wallarr = walljson["Walls"];
+        if (wallarr.IsArray())
+        {
+            for (rapidjson::SizeType i = 0, ie = wallarr.Size(); i < ie; ++i)
+            {
+                const rapidjson::Value& wall = wallarr[i];
+                std::string label = wall["label"].GetString();
+                if (label.compare("WALL") != 0) {
+                    std::cout << "[error] parsing wall " << wall["attributes"]["id"].GetString() << std::endl;
+                }
+                else {
+                    const rapidjson::Value& att = wall["attributes"];
+
+                    Vec3d O(att["origin"][0].GetDouble(), 
+                            att["origin"][1].GetDouble(), 
+                            att["origin"][2].GetDouble());
+                    Vec3d W(att["x"][0].GetDouble(),
+                            att["x"][1].GetDouble(),
+                            att["x"][2].GetDouble());
+                    W *= att["width"].GetDouble();
+                    Vec3d H(att["y"][0].GetDouble(),
+                            att["y"][1].GetDouble(),
+                            att["y"][2].GetDouble());
+                    H *= att["height"].GetDouble();
+                    Quad3Dd wallgeometry(O,O+H,O+W+H,O+W);
+                    wallgeometry.id = wall["attributes"]["id"].GetString();
+                    walls.push_back(wallgeometry);
+                }
+            }
+        }
+        else {
+            std::cout << "[ERROR] parsing input JSON file " << wallfn << std::endl;
+        }
+
+    }
+
+    std::cout << "# # # # # # # # # # # # #" << std::endl;
+    std::cout << "parsed " << scans.size() << " scans and " << walls.size() << " walls." << std::endl;
+
+    {
+        // export walls
+        myIFS quadgeometry; // ifs with orthophoto quads
+
+        quadgeometry.useTextureCoordinates = true;
+        quadgeometry.texcoordinates.push_back(Vec2d(0, 1));
+        quadgeometry.texcoordinates.push_back(Vec2d(0, 0));
+        quadgeometry.texcoordinates.push_back(Vec2d(1, 0));
+        quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
+
+        for (auto const &wall : walls) {
+
+            // perform orthophoto projection
+
+            //Image orthophoto = q.performProjection(projection, resolution);
+
+            Vec3d W = wall.W();
+            Vec3d H = wall.H();
+            double width = W.norm();
+            double height = H.norm();
+            Vec3d xdir = W; xdir.normalize();
+            Vec3d ydir = H; ydir.normalize();
+
+            Image ortho;
+            ortho.initialize((int)(width / resolution) + 1, (int)(height / resolution) + 1, 24);
+
+#pragma omp parallel for
+            for (int y = 0; y < ortho.height(); ++y)
+            {
+                const Vec3d vecy = H * (y / (double)ortho.height());
+                for (int x = 0; x < ortho.width(); ++x)
+                {
+                    // calculate position in world coordinates
+                    const Vec3d vecx = W * (x / (double)ortho.width());
+                    const Vec3d position = wall.V[0] + vecx + vecy;
+
+                    // project color value: choose nearest scan
+                    double neardist = DBL_MAX;
+                    const SphericalPanoramaImageProjection *S = 0;
+                    for (auto const &scan : scans)
+                    {
+                        double dist = (position - scan.pose.O).norm();
+                        if (dist < neardist) {
+                            neardist = dist;
+                            S = &scan;
+                        }
+                    }
+                    if (S) 
+                    {
+                        RGB color = S->getColorProjection(position);
+                        // write color value
+                        ortho(x, y, 0) = color[0];
+                        ortho(x, y, 1) = color[1];
+                        ortho(x, y, 2) = color[2];
+                    }
+                }
+            }
+
+            {
+                std::ostringstream oss;
+
+                oss << "ortho_" << wall.id << ".jpg";
+                saveJPEG(oss.str().c_str(), ortho);
+
+                std::cout << oss.str() << " : " << ortho.width() << "x"
+                    << ortho.height() << " n: " << wall.pose.Z << std::endl;
+            }
+
+            std::ostringstream matname, texname;
+            matname << "ortho" << wall.id;
+            texname << "ortho_" << wall.id << ".jpg";
+
+            if (exportQuadGeometry) {
+                // create quad geometry, quads always use the same texcoordinates
+                myIFS::IFSINDICES face;
+                myIFS::IFSINDICES facetc;
+                face.push_back(quadgeometry.vertex2index(wall.V[0]));
+                facetc.push_back(0);
+                face.push_back(quadgeometry.vertex2index(wall.V[1]));
+                facetc.push_back(1);
+                face.push_back(quadgeometry.vertex2index(wall.V[2]));
+                facetc.push_back(2);
+                face.push_back(quadgeometry.vertex2index(wall.V[3]));
+                facetc.push_back(3);
+                quadgeometry.faces.push_back(face);
+                quadgeometry.facetexc.push_back(facetc);
+                quadgeometry.materials.push_back(
+                    IFS::Material(matname.str(), texname.str()));
+                quadgeometry.facematerial.push_back(quadgeometry.materials.size() -
+                    1);
+                assert(quadgeometry.faces.size() == quadgeometry.facetexc.size() &&
+                    quadgeometry.faces.size() ==
+                    quadgeometry.facematerial.size());
+            }
+
+        }
+
     }
 
     //  if (vm.count("im")) {

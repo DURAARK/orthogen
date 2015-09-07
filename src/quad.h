@@ -15,7 +15,7 @@ struct Quad3D
 {
     T V[4];                        // quad coordinates, in CCW Order starting top left
     Pose pose;
-    //int firstVertex;
+    std::string id;
 
     std::vector<size_t> tri_id;    // mesh triangles belonging to this quad
 
@@ -83,6 +83,10 @@ struct Quad3D
         return (V[1] - V[0]).norm() * (V[2] - V[1]).norm();
     }
 
+    inline T W() const { return V[3] - V[0]; }
+    inline T H() const { return V[1] - V[0]; }
+
+
     // resolution is <world units>/pixel
     Image performProjection(const ImageProjection& projection, const double resolution) const
     {
@@ -95,8 +99,8 @@ struct Quad3D
 #endif
 
         // origin is left top
-        T H  = V[1] - V[0];     // Y - Vector
-        T W = V[3] - V[0];      // X - Vector
+        T H = V[1] - V[0];     // Y - Vector
+        T W = V[3] - V[0];     // X - Vector
 
         double width = W.norm();     // vnorm(W);
         double height = H.norm();    // vnorm(H);

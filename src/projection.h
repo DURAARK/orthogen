@@ -24,14 +24,15 @@ namespace OrthoGen
     class SphericalPanoramaImageProjection : public ImageProjection
     {
     private:
-        Pose pose;
-        Image pano;
         bool verbose;
 
     public:
         std::string basename;
         Vec2d azimuthRange;
         Vec2d elevationRange;
+
+        Pose pose;
+        Image pano;
 
         SphericalPanoramaImageProjection();
 
