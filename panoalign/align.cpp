@@ -36,6 +36,7 @@ int main(int ac, char *av[]) {
   int y_offset = 0;
   std::string srcname = "src.jpg";
   std::string dstname = "dst.jpg";
+  std::string outname = "dst_aligned.jpg";
 
   po::options_description desc("commandline options");
 
@@ -49,6 +50,7 @@ int main(int ac, char *av[]) {
       ("yoff", po::value<int>(),"Y-Offset [0]")
       ("writenormalized", po::value<int>(), "also write normalized images")
       ("selrange", po::value<std::vector<double>>()->multitoken(),"source elevation angle bounds [min..max], default [-PI/2..PI/2]")
+      ("outname", po::value<std::string>(), "output file name [.JPG]")
       ;
 
   po::variables_map vm;
@@ -77,6 +79,9 @@ int main(int ac, char *av[]) {
   }
   if (vm.count("imdst")) {
     dstname = vm["imdst"].as<std::string>();
+  }
+  if (vm.count("outname")) {
+      outname = vm["outname"].as<std::string>();
   }
   if (vm.count("optimum")) {
     optimum = vm["optimum"].as<int>();
@@ -139,7 +144,7 @@ int main(int ac, char *av[]) {
     std::cout << "resizing source image.." << std::endl;
     resizeBlit(imsrc, imsrc.whole(), imsrcResized,
                Image::AABB2D(0, padhigh+y_offset, C2, R1target+y_offset));
-    saveJPEG("srcresized.jpg", imsrcResized);
+    //saveJPEG("srcresized.jpg", imsrcResized);
 
     auto NormalizeImage = [](const Image &img) -> ImageD {
       ImageD result = convertToGrayScale<Image, ImageD>(img);
@@ -165,9 +170,9 @@ int main(int ac, char *av[]) {
         const double dmin = img.min(), dmax = img.max();
         std::cout << "min:" << dmin << " max: " << dmax << std::endl;
         auto CB = [&img, &out, dmin, dmax](int x, int y) {
-          out(x, y, 0) = (img(x, y, 0) - dmin) * 255.0 / (dmax - dmin);
-          out(x, y, 1) = (img(x, y, 0) - dmin) * 255.0 / (dmax - dmin);
-          out(x, y, 2) = (img(x, y, 0) - dmin) * 255.0 / (dmax - dmin);
+          out(x, y, 0) = (unsigned char)((img(x, y, 0) - dmin) * 255.0 / (dmax - dmin));
+          out(x, y, 1) = (unsigned char)((img(x, y, 0) - dmin) * 255.0 / (dmax - dmin));
+          out(x, y, 2) = (unsigned char)((img(x, y, 0) - dmin) * 255.0 / (dmax - dmin));
         };
         out.applyPixelPosCB(CB, out.whole());
         saveJPEG(fn.c_str(), out);
@@ -182,14 +187,26 @@ int main(int ac, char *av[]) {
 
     std::clock_t startcputime = std::clock();
 
-    std::cout << "searching for SAD optimum.." << std::endl;
+    std::cout << "calculate SAD for horizontal shifts.." << std::endl;
+
+    {
+        const int progress_value = dst_n.width() / 10;
+        int pgc = 0;
 #pragma omp parallel for
-    for (int shift = 0; shift < dst_n.width(); ++shift) {
-      auto SAD_CB = [&SAD, &src_n, &dst_n, shift](int x, int y) {
-        SAD[shift] +=
-            std::abs(src_n(x, y) - dst_n((x + shift) % dst_n.width(), y));
-      };
-      imsrc.applyPixelPosCBS(SAD_CB, imsrc.whole());
+        for (int shift = 0; shift < dst_n.width(); ++shift) {
+            auto SAD_CB = [&SAD, &src_n, &dst_n, shift, &imsrcResized, &imdst](int x, int y) {
+                const int dx = (x + shift) % dst_n.width();
+                // calculate only with valid pixels
+                if (!imsrcResized.isValue(x, y, 0, 0, 0) && !imdst.isValue(dx, y, 0, 0, 0))
+                {
+                    SAD[shift] += std::abs(src_n(x, y) - dst_n(dx, y));
+                }
+            };
+            imsrc.applyPixelPosCBS(SAD_CB, imsrc.whole());
+            if ((++pgc % progress_value) == 0) {
+                std::cout << "*";
+            }
+        }
     }
     double cpu_duration = (std::clock() - startcputime) / (double)CLOCKS_PER_SEC;
     std::cout << "building SAD map took " << cpu_duration << "s." << std::endl;
@@ -220,7 +237,7 @@ int main(int ac, char *av[]) {
 
   if (vm.count("writesad")) {
     std::ofstream of("sad.csv");
-    for (int i = 0, ie = SAD.size(); i < ie; ++i) {
+    for (size_t i = 0, ie = SAD.size(); i < ie; ++i) {
       of << i << "; " << std::fixed << std::setprecision(12) << SAD[i]
          << std::endl;
     }
@@ -251,7 +268,7 @@ int main(int ac, char *av[]) {
       for (auto cluster = ms_sad.cluster.begin(); i < 5; ++cluster, ++i) {
           std::cout << " optimum " << i << " : " << cluster->first << std::endl;
           double localmin = DBL_MAX;
-          int localid = -1;
+          size_t localid = -1;
           for (auto const &p : cluster->second) {
               if (SAD[p] < localmin) {
                   localmin = SAD[p];
@@ -269,7 +286,7 @@ int main(int ac, char *av[]) {
   std::cout << " find minimum SAD: " << std::endl;
   // put into map (sort)
   std::map<double, int> sapcost;
-  for (int i = 0, ie = SAD.size(); i < ie; ++i) {
+  for (int i = 0, ie = (int) SAD.size(); i < ie; ++i) {
     sapcost[SAD[i]] = i;
   }
 
@@ -290,7 +307,7 @@ int main(int ac, char *av[]) {
       FinalOutput(x, y, ch) = imdst(x_, y, ch);
   };
   FinalOutput.applyPixelPosCB(ShiftCB, FinalOutput.whole());
-  saveJPEG("dst_aligned.jpg", FinalOutput);
+  saveJPEG(outname.c_str(), FinalOutput);
 
   it = sapcost.begin();
   for (int i = 0; i < 5; ++i) {

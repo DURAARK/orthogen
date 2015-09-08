@@ -12,6 +12,8 @@
 #include <limits>
 #include <chrono>
 
+#include <cstdlib>
+
 #include <boost/program_options.hpp>
 
 #include "rapidjson/document.h"
@@ -50,6 +52,7 @@ int main(int ac, char *av[]) {
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
   std::string output = "ortho";
   std::string panopath = ".\\";
+  std::string aligncmd = "panoalign.exe";
 
   try {
     po::options_description desc("commandline options");
@@ -58,6 +61,7 @@ int main(int ac, char *av[]) {
         ("walljson", po::value<std::string>(), "input wall json [.json]")
         ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
         ("panopath", po::value<std::string>(), "path to pano images")
+        ("align", po::value<std::string>(), "align executable")
         ;
 
     po::variables_map vm;
@@ -83,6 +87,10 @@ int main(int ac, char *av[]) {
         }
     }
 
+    if (vm.count("align"))
+    {
+        aligncmd = vm["align"].as<std::string>();
+    }
 
     // parse jsons
     // ================================================= E57 Metadata
@@ -160,6 +168,14 @@ int main(int ac, char *av[]) {
                 }
                 else {
                     std::cout << "aligned image not found, aligning..." << std::endl;
+                    std::ostringstream cmd;
+                    cmd.precision(std::numeric_limits<double>::max_digits10);
+                    cmd << aligncmd << " ";
+                    cmd << "--imsrc " << panopath << new_scan.basename << "_Faro.jpg ";
+                    cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
+                    cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
+                    cmd << "--selrange " << new_scan.elevationRange[0] << " " << new_scan.elevationRange[1] << " ";
+                    std::system(cmd.str().c_str());
                 }
             }
 
