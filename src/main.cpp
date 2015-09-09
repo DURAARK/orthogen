@@ -37,6 +37,12 @@ typedef struct json_token *JSONTokens;
 
 using namespace OrthoGen;
 
+template <typename V>
+void prvec(const V& v, const std::string msg="")
+{
+    std::cout << msg << "[" << v[0] << "," << v[1] << "," << v[2] << "]";
+}
+
 int main(int ac, char *av[]) {
 
   // main application state
@@ -255,11 +261,12 @@ int main(int ac, char *av[]) {
         quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
 
         for (auto const &wall : walls) {
+            std::ostringstream outfile;
+            outfile << output << "_" << wall.id;
+            std::cout << "* Processing " << outfile.str() << std::endl;;
+            outfile << ".jpg";
 
             // perform orthophoto projection
-
-            //Image orthophoto = q.performProjection(projection, resolution);
-
             Vec3d W = wall.W();
             Vec3d H = wall.H();
             double width = W.norm();
@@ -269,6 +276,15 @@ int main(int ac, char *av[]) {
 
             Image ortho;
             ortho.initialize((int)(width / resolution) + 1, (int)(height / resolution) + 1, 24);
+
+            prvec(wall.V[0], " V0:");
+            prvec(wall.V[1], " V1:");
+            std::cout << std::endl;
+            prvec(wall.V[2], " V2:");
+            prvec(wall.V[3], " V3:");
+            std::cout << std::endl;
+            std::cout << ortho.width() << "x" << ortho.height() << " n: " << wall.pose.Z << std::endl;
+
 
 #pragma omp parallel for
             for (int y = 0; y < ortho.height(); ++y)
@@ -303,13 +319,8 @@ int main(int ac, char *av[]) {
             }
 
             {
-                std::ostringstream oss;
+                saveJPEG(outfile.str().c_str(), ortho);
 
-                oss << output << "_" << wall.id << ".jpg";
-                saveJPEG(oss.str().c_str(), ortho);
-
-                std::cout << oss.str() << " : " << ortho.width() << "x"
-                    << ortho.height() << " n: " << wall.pose.Z << std::endl;
             }
 
             std::ostringstream matname, texname;
