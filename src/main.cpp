@@ -191,6 +191,14 @@ int main(int ac, char* av[])
         // set up resolution scale from mm to actual scale / pixel
         resolution = resolution * scalefactor / 1000;
 
+        auto pv3 = [](const std::string &msg,  Vec3d &v){
+            std::cout << msg << " [" << v[0] << "," << v[1] << "," << v[2] << "]" << std::endl;
+        };
+        std::cout << "# SCAN POSE #" << std::endl;
+        pv3("O:", projection.pose.O);
+        pv3("X:", projection.pose.X);
+        pv3("Y:", projection.pose.Y);
+        pv3("Z:", projection.pose.Z);
 
         // PROCESS OUTPUT
         if (exportSphere)

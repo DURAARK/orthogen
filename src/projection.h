@@ -21,11 +21,11 @@ public:
 class SphericalPanoramaImageProjection : public ImageProjection
 {
 private:
-    Pose pose;
     Image pano;
     bool verbose;
 
 public:
+    Pose pose;
     Vec2d azimuthRange;
     Vec2d elevationRange;
 
