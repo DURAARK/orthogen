@@ -43,11 +43,10 @@ int main(int ac, char *av[]) {
   std::vector<SphericalPanoramaImageProjection> scans;
   std::vector<Quad3Dd> walls;
 
-  double resolution = 1.0;  // default: 1 mm/pixel
-  double scalefactor = 1.0; // m
+  double resolution = 0.001;                // default: 1 mm/pixel
+  double walljson_scalefactor = 0.001;      // wall json is in mm
   bool exportOBJ = false;
-  bool exportSphere = false;
-  bool exportQuadGeometry = false;
+  //bool exportSphere = false;
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
   std::string output = "ortho";
@@ -62,6 +61,8 @@ int main(int ac, char *av[]) {
         ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
         ("panopath", po::value<std::string>(), "path to pano images")
         ("align", po::value<std::string>(), "align executable")
+        ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
+        ("exgeom", "export textured geometry as .obj")
         ;
 
     po::variables_map vm;
@@ -87,11 +88,10 @@ int main(int ac, char *av[]) {
         }
     }
 
-    if (vm.count("align"))
-    {
-        aligncmd = vm["align"].as<std::string>();
-    }
-
+    if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
+    if (vm.count("output")) { aligncmd = vm["output"].as<std::string>(); }
+    exportOBJ = vm.count("exgeom") != 0;
+    
     // parse jsons
     // ================================================= E57 Metadata
     // - parse scans (pose, name, panorama)
@@ -143,7 +143,9 @@ int main(int ac, char *av[]) {
                 double y = item["pose"]["rotation"]["y"].GetDouble();
                 double z = item["pose"]["rotation"]["z"].GetDouble();
                 Quaterniond quaternion(w, x, y, z);
-                new_scan.applyRotation(quaternion);
+                std::cout << " applying quaternion [" << quaternion.x() << ","
+                    << quaternion.y() << "," << quaternion.z() << "," << quaternion.w()
+                    << "]" << std::endl;                new_scan.applyRotation(quaternion);
             }
             std::cout << "pose: ";
             new_scan.printPose();
@@ -216,15 +218,18 @@ int main(int ac, char *av[]) {
                     Vec3d O(att["origin"][0].GetDouble(), 
                             att["origin"][1].GetDouble(), 
                             att["origin"][2].GetDouble());
+                    O *= walljson_scalefactor;
                     Vec3d W(att["x"][0].GetDouble(),
                             att["x"][1].GetDouble(),
                             att["x"][2].GetDouble());
                     W *= att["width"].GetDouble();
+                    W *= walljson_scalefactor;
                     Vec3d H(att["y"][0].GetDouble(),
                             att["y"][1].GetDouble(),
                             att["y"][2].GetDouble());
                     H *= att["height"].GetDouble();
-                    Quad3Dd wallgeometry(O,O+H,O+W+H,O+W);
+                    H *= walljson_scalefactor;
+                    Quad3Dd wallgeometry(O, O + H, O + W + H, O + W);
                     wallgeometry.id = wall["attributes"]["id"].GetString();
                     walls.push_back(wallgeometry);
                 }
@@ -300,7 +305,7 @@ int main(int ac, char *av[]) {
             {
                 std::ostringstream oss;
 
-                oss << "ortho_" << wall.id << ".jpg";
+                oss << output << "_" << wall.id << ".jpg";
                 saveJPEG(oss.str().c_str(), ortho);
 
                 std::cout << oss.str() << " : " << ortho.width() << "x"
@@ -308,10 +313,10 @@ int main(int ac, char *av[]) {
             }
 
             std::ostringstream matname, texname;
-            matname << "ortho" << wall.id;
-            texname << "ortho_" << wall.id << ".jpg";
+            matname << output << "_" << wall.id;
+            texname << output << "_" << wall.id << ".jpg";
 
-            if (exportQuadGeometry) {
+            if (exportOBJ) {
                 // create quad geometry, quads always use the same texcoordinates
                 myIFS::IFSINDICES face;
                 myIFS::IFSINDICES facetc;
@@ -329,253 +334,23 @@ int main(int ac, char *av[]) {
                     IFS::Material(matname.str(), texname.str()));
                 quadgeometry.facematerial.push_back(quadgeometry.materials.size() -
                     1);
-                assert(quadgeometry.faces.size() == quadgeometry.facetexc.size() &&
-                    quadgeometry.faces.size() ==
-                    quadgeometry.facematerial.size());
+                assert(quadgeometry.faces.size() == quadgeometry.facetexc.size() 
+                    && quadgeometry.faces.size() == quadgeometry.facematerial.size());
             }
 
         }
-
+        if (exportOBJ)
+        {
+            std::ostringstream objname;
+            objname << output << "_geometry.obj";
+            IFS::exportOBJ(quadgeometry, objname.str(), "# OrthoGen textured quads\n");
+        }
     }
 
-    //  if (vm.count("im")) {
-    //    Image img;
-    //    if (loadJPEG(vm["im"].as<std::string>().c_str(), img)) {
-    //      projection.setPanoramicImage(img);
-    //    } else {
-    //      std::cout << "Error: could not open " << vm["im"].as<std::string>()
-    //                << std::endl;
-    //    }
-    //  }
-
-    //  if (vm.count("ig")) {
-    //    // load geometry
-    //    ingeometry = IFS::loadOBJ<myIFS>(vm["ig"].as<std::string>());
-    //    if (!ingeometry.isValid())
-    //      std::cout << "Error: could not open " << vm["ig"].as<std::string>()
-    //                << std::endl;
-    //  }
-
-    //  if (vm.count("res")) {
-    //    resolution = vm["res"].as<double>();
-    //  }
-
-    //  if (vm.count("ncluster")) {
-    //    WINDOW_SIZE_NORMAL = vm["ncluster"].as<double>();
-    //  }
-
-    //  if (vm.count("dcluster")) {
-    //    WINDOW_SIZE_DISTANCE = vm["dcluster"].as<double>();
-    //  }
-
-    //  if (vm.count("trans")) {
-    //    std::vector<double> trans = vm["trans"].as<std::vector<double>>();
-    //    projection.setPosition(Vec3d(trans[0], trans[1], trans[2]));
-    //  }
-
-    //  if (vm.count("rot")) {
-    //    std::vector<double> rot = vm["rot"].as<std::vector<double>>();
-    //    if (rot.size() == 4) {
-    //      Quaterniond quaternion(rot[0], rot[1], rot[2], rot[3]);
-    //      std::cout << " applying quaternion [" << quaternion.x() << ","
-    //                << quaternion.y() << "," << quaternion.z() << ","
-    //                << quaternion.w() << "]" << std::endl;
-    //      projection.applyRotation(quaternion);
-    //    } else {
-    //      std::cout << " --rot Error: quaternion is not composed of 4 values."
-    //                << std::endl;
-    //    }
-    //  }
-
-    //  if (vm.count("elevation")) {
-    //    std::vector<double> el = vm["elevation"].as<std::vector<double>>();
-    //    projection.elevationRange[0] = el[0];
-    //    projection.elevationRange[1] = el[1];
-    //  }
-
-    //  if (vm.count("azimuth")) {
-    //    std::vector<double> az = vm["azimuth"].as<std::vector<double>>();
-    //    projection.azimuthRange[0] = az[0];
-    //    projection.azimuthRange[1] = az[1];
-    //  }
-
-    //  if (vm.count("exgeom")) {
-    //    exportOBJ = vm["exgeom"].as<bool>();
-    //  }
-    //  if (vm.count("exquad")) {
-    //    exportQuadGeometry = vm["exgeom"].as<bool>();
-    //  }
-    //  if (vm.count("exsphere")) {
-    //    exportSphere = vm["exsphere"].as<bool>();
-    //  }
-    //  if (vm.count("scale")) {
-    //    std::string s = vm["scale"].as<std::string>();
-    //    transform(s.begin(), s.end(), s.begin(), toupper);
-    //    if (s.compare("MM") == 0)
-    //      scalefactor = 1000.0;
-    //    if (s.compare("CM") == 0)
-    //      scalefactor = 100.0;
-    //    if (s.compare("DM") == 0)
-    //      scalefactor = 10.0;
-    //    if (s.compare("M") == 0)
-    //      scalefactor = 1.0;
-    //    if (s.compare("KM") == 0)
-    //      scalefactor = 0.001;
-    //  }
-
-    //  if (vm.count("output")) {
-    //    output = vm["output"].as<std::string>();
-    //  }
   } catch (std::exception &e) {
     std::cerr << "error: " << e.what() << "\n";
     return -1;
   }
-
-  // if (projection.isValid() && ingeometry.isValid()) {
-  //  const Image &img = projection.img();
-  //  std::cout << "input image is " << img.width() << " x " << img.height()
-  //            << " pixels." << std::endl;
-  //  std::cout << "input geometry consists of " << ingeometry.vertices.size()
-  //            << " vertices and " << ingeometry.faces.size() << " faces."
-  //            << std::endl;
-  //  std::cout << "using a resolution of " << resolution << "mm/pixel"
-  //            << std::endl;
-
-  //  // set up resolution scale from mm to actual scale / pixel
-  //  resolution = resolution * scalefactor / 1000;
-
-  //  // PROCESS OUTPUT
-  //  if (exportSphere) {
-  //    double radius1m = 0.5 * scalefactor;
-  //    std::cout << "- exporting projected panorama OBJ.." << std::endl;
-  //    myIFS sphere = projection.exportTexturedSphere(radius1m, 100);
-  //    sphere.materials.push_back(IFS::Material("sphere", "sphere.jpg"));
-  //    sphere.facematerial.push_back(sphere.materials.size() - 1);
-  //    IFS::exportOBJ(sphere, "sphere", "# OrthoGen panoramic sphere\n");
-  //    saveJPEG("sphere.jpg", projection.img());
-
-  //    // projection.exportPointCloud(radius1m, 1000);
-  //  }
-
-  //  // EXTRACT QUADS FROM GEOMETRY
-  //  std::cout << "Using a meanshift size of " << WINDOW_SIZE_NORMAL
-  //            << " for normal clustering." << std::endl;
-  //  std::cout << "Using a meanshift size of " << WINDOW_SIZE_DISTANCE
-  //            << " for plane distance clustering." << std::endl;
-
-  //  std::vector<Quad3Dd> quads;
-  //  std::vector<Triangle> triangles;
-  //  extract_quads(ingeometry, scalefactor, triangles, quads,
-  //                WINDOW_SIZE_DISTANCE, WINDOW_SIZE_NORMAL);
-
-  //  myIFS outgeometry; // ifs with input geometry with texture coords
-  //  outgeometry.useTextureCoordinates = true;
-
-  //  std::cout << "Exporting " << quads.size() << " ortho views." << std::endl;
-  //  {
-  //    myIFS quadgeometry; // ifs with orthophoto quads
-
-  //    quadgeometry.useTextureCoordinates = true;
-  //    quadgeometry.texcoordinates.push_back(Vec2d(0, 1));
-  //    quadgeometry.texcoordinates.push_back(Vec2d(0, 0));
-  //    quadgeometry.texcoordinates.push_back(Vec2d(1, 0));
-  //    quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
-  //    int qid = 0;
-  //    for (auto const &q : quads) {
-  //      // create orthophoto projection
-  //      Image orthophoto = q.performProjection(projection, resolution);
-  //      {
-  //        std::ostringstream oss;
-  //        if (quads.size() > 1)
-  //          oss << output << "_" << qid << ".jpg";
-  //        else
-  //          oss << output << ".jpg";
-  //        saveJPEG(oss.str().c_str(), orthophoto);
-  //        std::cout << oss.str() << " : " << orthophoto.width() << "x"
-  //                  << orthophoto.height() << " n: " << q.pose.Z << std::endl;
-  //      }
-
-  //      std::ostringstream matname, texname;
-  //      matname << "ortho" << qid;
-  //      texname << "ortho_" << qid << ".jpg";
-
-  //      if (exportQuadGeometry) {
-  //        // create quad geometry, quads always use the same texcoordinates
-  //        myIFS::IFSINDICES face;
-  //        myIFS::IFSINDICES facetc;
-  //        face.push_back(quadgeometry.vertex2index(q.V[0]));
-  //        facetc.push_back(0);
-  //        face.push_back(quadgeometry.vertex2index(q.V[1]));
-  //        facetc.push_back(1);
-  //        face.push_back(quadgeometry.vertex2index(q.V[2]));
-  //        facetc.push_back(2);
-  //        face.push_back(quadgeometry.vertex2index(q.V[3]));
-  //        facetc.push_back(3);
-  //        quadgeometry.faces.push_back(face);
-  //        quadgeometry.facetexc.push_back(facetc);
-  //        quadgeometry.materials.push_back(
-  //            IFS::Material(matname.str(), texname.str()));
-  //        quadgeometry.facematerial.push_back(quadgeometry.materials.size() -
-  //                                            1);
-  //        assert(quadgeometry.faces.size() == quadgeometry.facetexc.size() &&
-  //               quadgeometry.faces.size() ==
-  //               quadgeometry.facematerial.size());
-  //      }
-
-  //      // create output triangles for this quad
-  //      if (exportOBJ) {
-  //        outgeometry.materials.push_back(
-  //            IFS::Material(matname.str(), texname.str()));
-  //        for (size_t i : q.tri_id) {
-  //          myIFS::IFSINDICES face;
-  //          myIFS::IFSINDICES facetc;
-  //          const Triangle &T = triangles[i];
-
-  //          // add triangle vertices
-  //          face.push_back(outgeometry.vertex2index(T.p));
-  //          facetc.push_back(outgeometry.texcoordinates.size());
-  //          outgeometry.texcoordinates.push_back(q.point2tex(T.p));
-  //          face.push_back(outgeometry.vertex2index(T.q));
-  //          facetc.push_back(outgeometry.texcoordinates.size());
-  //          outgeometry.texcoordinates.push_back(q.point2tex(T.q));
-  //          face.push_back(outgeometry.vertex2index(T.r));
-  //          facetc.push_back(outgeometry.texcoordinates.size());
-  //          outgeometry.texcoordinates.push_back(q.point2tex(T.r));
-
-  //          // add triangle
-  //          outgeometry.faces.push_back(face);
-  //          outgeometry.facetexc.push_back(facetc);
-  //          outgeometry.facematerial.push_back(outgeometry.materials.size() -
-  //                                             1);
-  //          assert(outgeometry.faces.size() == outgeometry.facetexc.size() &&
-  //                 outgeometry.faces.size() ==
-  //                 outgeometry.facematerial.size());
-  //        }
-  //      }
-
-  //      ++qid;
-  //    }
-
-  //    if (exportQuadGeometry) {
-  //      IFS::exportOBJ(quadgeometry, "quadgeometry",
-  //                     "# OrthoGen textured quads\n");
-  //    }
-  //  }
-
-  //  if (exportOBJ) {
-  //    IFS::exportOBJ(outgeometry, "outgeometry", "# OrthoGen textured
-  //    model\n");
-  //  }
-
-  //  return 0;
-  //} else {
-  //  if (!projection.isValid()) {
-  //    std::cout << "Error: invalid panoramic image " << std::endl;
-  //  }
-  //  if (!ingeometry.isValid()) {
-  //    std::cout << "Error: invalid geometry " << std::endl;
-  //  }
-  //}
 
   std::cout << "--help for options." << std::endl;
 }

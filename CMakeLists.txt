@@ -71,7 +71,7 @@ SET(SRC_FILES
     )
 
 ADD_EXECUTABLE(orthogen ${SRC_FILES})
-TARGET_LINK_LIBRARIES( orthogen ${Boost_LIBRARIES} libjpeg)
+TARGET_LINK_LIBRARIES(orthogen ${Boost_LIBRARIES} libjpeg)
 
 #----------------------------------------------------------------------
 # panoalign
