@@ -26,6 +26,12 @@ namespace po = boost::program_options;
 double WINDOW_SIZE_NORMAL = 0.3;
 double WINDOW_SIZE_DISTANCE = 0.1;
 
+
+void pv3(const std::string &msg, const Vec3d &v)
+{
+    std::cout << msg << " [" << v[0] << "," << v[1] << "," << v[2] << "]" << std::endl;
+};
+
 int main(int ac, char* av[])
 {
     SphericalPanoramaImageProjection projection;
@@ -191,9 +197,6 @@ int main(int ac, char* av[])
         // set up resolution scale from mm to actual scale / pixel
         resolution = resolution * scalefactor / 1000;
 
-        auto pv3 = [](const std::string &msg,  Vec3d &v){
-            std::cout << msg << " [" << v[0] << "," << v[1] << "," << v[2] << "]" << std::endl;
-        };
         std::cout << "# SCAN POSE #" << std::endl;
         pv3("O:", projection.pose.O);
         pv3("X:", projection.pose.X);
@@ -237,6 +240,10 @@ int main(int ac, char* av[])
             int qid = 0;
             for (auto const &q : quads)
             {
+                pv3("V0:", q.V[0]);
+                pv3("V1:", q.V[1]);
+                pv3("V2:", q.V[2]);
+                pv3("V3:", q.V[3]);
                 // create orthophoto projection
                 Image orthophoto = q.performProjection(projection, resolution);
                 {
