@@ -50,9 +50,10 @@ void SphericalPanoramaImageProjection::printPose(){
 Vec2d SphericalPanoramaImageProjection::spher2tex(const Vec3d &spherical) const
 {
     // get relative value to  bounds
-    double azimuth   = spherical[0] + PI;     // PI = scanner constant!
+    double azimuth = spherical[0]+PI;     // PI = scanner constant!
     double elevation = spherical[1];
-    if (azimuth > 2.0*PI) azimuth -= 2.0*PI;
+    while (azimuth < 0) azimuth += 2.0*PI;
+    while (azimuth > 2.0*PI) azimuth -= 2.0*PI;
     Vec2d tc(
         ((azimuth - azimuthRange[0]) / (azimuthRange[1] - azimuthRange[0])),
         1.0 - (elevation - elevationRange[0]) / (elevationRange[1] - elevationRange[0])

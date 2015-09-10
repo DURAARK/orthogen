@@ -51,7 +51,7 @@ int main(int ac, char *av[]) {
 
   double resolution = 0.001;                // default: 1 mm/pixel
   double walljson_scalefactor = 0.001;      // wall json is in mm
-  bool exportOBJ = false;
+  bool exportOBJ = false, useFaroPano = false;
   //bool exportSphere = false;
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
@@ -68,7 +68,8 @@ int main(int ac, char *av[]) {
         ("panopath", po::value<std::string>(), "path to pano images")
         ("align", po::value<std::string>(), "align executable")
         ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
-        ("exgeom", "export textured geometry as .obj")
+        ("exgeom", po::value< int >(), "export textured geometry as .obj")
+        ("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ;
 
     po::variables_map vm;
@@ -96,7 +97,8 @@ int main(int ac, char *av[]) {
 
     if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
     if (vm.count("output")) { aligncmd = vm["output"].as<std::string>(); }
-    exportOBJ = vm.count("exgeom") != 0;
+    exportOBJ = (vm.count("exgeom") > 0);
+    useFaroPano = (vm.count("usefaroimage") > 0);
     
     // parse jsons
     // ================================================= E57 Metadata
@@ -158,32 +160,49 @@ int main(int ac, char *av[]) {
 
             // bounds
             {
-                new_scan.elevationRange[0] = item["sphericalbounds"]["elevation_minimum"].GetDouble();
-                new_scan.elevationRange[1] = item["sphericalbounds"]["elevation_maximum"].GetDouble();
-                new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
-                new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
+                if (useFaroPano) {
+                    new_scan.elevationRange[0] = item["sphericalbounds"]["elevation_minimum"].GetDouble();
+                    new_scan.elevationRange[1] = item["sphericalbounds"]["elevation_maximum"].GetDouble();
+                    new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
+                    new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
+                }
                 std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
                           << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
             }
 
-            // load panoramic image (align if not found)
+            // load panoramic image
             {
-                std::ostringstream ss;
-                ss << panopath << new_scan.basename << "_aligned.jpg";
-                Image img;
-                if (loadJPEG(ss.str().c_str(), img)) {
-                    new_scan.setPanoramicImage(img);
+                if (useFaroPano) {
+                    std::ostringstream ss;
+                    ss << panopath << new_scan.basename << "_Faro.jpg";
+                    Image img;
+                    if (loadJPEG(ss.str().c_str(), img)) {
+                        new_scan.setPanoramicImage(img);
+                    }
+                    else {
+                        std::cout << "[ERROR] loading Faro panoramic image." << std::endl;
+                    }
                 }
                 else {
-                    std::cout << "aligned image not found, aligning..." << std::endl;
-                    std::ostringstream cmd;
-                    cmd.precision(std::numeric_limits<double>::max_digits10);
-                    cmd << aligncmd << " ";
-                    cmd << "--imsrc " << panopath << new_scan.basename << "_Faro.jpg ";
-                    cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
-                    cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
-                    cmd << "--selrange " << new_scan.elevationRange[0] << " " << new_scan.elevationRange[1] << " ";
-                    std::system(cmd.str().c_str());
+                    // load aligned manual image, align if not found
+                    std::ostringstream ss;
+                    ss << panopath << new_scan.basename << "_aligned.jpg";
+                    Image img;
+                    if (loadJPEG(ss.str().c_str(), img)) {
+                        new_scan.setPanoramicImage(img);
+                    }
+                    else {
+                        std::cout << "aligned image not found, aligning..." << std::endl;
+                        std::ostringstream cmd;
+                        cmd.precision(std::numeric_limits<double>::max_digits10);
+                        cmd << aligncmd << " ";
+                        cmd << "--imsrc " << panopath << new_scan.basename << "_Faro.jpg ";
+                        cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
+                        cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
+                        cmd << "--selrange " << new_scan.elevationRange[0] << " " << new_scan.elevationRange[1] << " ";
+                        std::system(cmd.str().c_str());
+                        loadJPEG(ss.str().c_str(), img);
+                    }
                 }
             }
 
@@ -224,18 +243,21 @@ int main(int ac, char *av[]) {
                     Vec3d O(att["origin"][0].GetDouble(), 
                             att["origin"][1].GetDouble(), 
                             att["origin"][2].GetDouble());
-                    O *= walljson_scalefactor;
-                    Vec3d W(att["x"][0].GetDouble(),
+                    Vec3d X(att["x"][0].GetDouble(),
                             att["x"][1].GetDouble(),
                             att["x"][2].GetDouble());
-                    W *= att["width"].GetDouble();
-                    W *= walljson_scalefactor;
-                    Vec3d H(att["y"][0].GetDouble(),
+                    Vec3d Y(att["y"][0].GetDouble(),
                             att["y"][1].GetDouble(),
                             att["y"][2].GetDouble());
-                    H *= att["height"].GetDouble();
-                    H *= walljson_scalefactor;
-                    Quad3Dd wallgeometry(O, O + H, O + W + H, O + W);
+                    double width = att["width"].GetDouble();
+                    double height = att["height"].GetDouble();
+
+                    Vec3d v0 = O*walljson_scalefactor;
+                    Vec3d v1 = (O + Y*height)*walljson_scalefactor;
+                    Vec3d v2 = (O + Y*height + X*width)*walljson_scalefactor;
+                    Vec3d v3 = (O + X*width)*walljson_scalefactor;
+
+                    Quad3Dd wallgeometry(v0,v1,v2,v3);
                     wallgeometry.id = wall["attributes"]["id"].GetString();
                     walls.push_back(wallgeometry);
                 }
@@ -298,30 +320,25 @@ int main(int ac, char *av[]) {
 
                     // project color value: choose nearest scan
                     double neardist = DBL_MAX;
-                    const SphericalPanoramaImageProjection *S = 0;
-                    for (auto const &scan : scans)
+                    int scanid=-1;
+                    for (int i = 0; i < scans.size(); ++i)
                     {
+                        auto const &scan = scans[i];
                         double dist = (position - scan.pose.O).norm();
                         if (dist < neardist) {
                             neardist = dist;
-                            S = &scan;
+                            scanid = i;
                         }
                     }
-                    if (S) 
+                    if (scanid!=-1) 
                     {
-                        RGB color = S->getColorProjection(position);
-                        // write color value
-                        ortho(x, y, 0) = color[0];
-                        ortho(x, y, 1) = color[1];
-                        ortho(x, y, 2) = color[2];
+                        RGB color = scans[scanid].getColorProjection(position);
+                        ortho.setRGB(x, y, color);
                     }
                 }
             }
 
-            {
-                saveJPEG(outfile.str().c_str(), ortho);
-
-            }
+            saveJPEG(outfile.str().c_str(), ortho);
 
             std::ostringstream matname, texname;
             matname << output << "_" << wall.id;

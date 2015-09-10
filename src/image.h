@@ -52,6 +52,11 @@ public:
     assert(off < pdata.size());
     return VTYPE(pdata[off], pdata[off + 1], pdata[off + 2]);
   }
+  template <typename VTYPE> inline void setRGB(const int x, const int y, VTYPE rgb)
+  {
+      unsigned const int off = bufoffset(x, y);
+      pdata[off] = rgb[0]; pdata[off+1] = rgb[1]; pdata[off+2] = rgb[2];
+  }
 
   inline bool isValid() const { return W != 0 && H != 0 && BPP != 0; }
   inline int width() const { return W; }
