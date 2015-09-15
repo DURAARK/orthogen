@@ -102,10 +102,12 @@ public:
     const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
     const int t = (int)floor(y);
     const int b = t >= ((int)H - 1) ? (int)H - 1 : t + 1;
+
     VTYPE q11 = rgbT<VTYPE>(l, t), q21 = rgbT<VTYPE>(r, t),
           q12 = rgbT<VTYPE>(l, b), q22 = rgbT<VTYPE>(r, b);
     return q11 * (r - x) * (b - y) + q21 * (x - l) * (b - y) +
            q12 * (r - x) * (y - t) + q22 * (x - l) * (y - t);
+    
   }
   // bilinear interpolation using a specific channel
   template <typename VTYPE>

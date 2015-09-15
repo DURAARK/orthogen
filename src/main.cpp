@@ -52,6 +52,7 @@ int main(int ac, char *av[]) {
   double resolution = 0.001;                // default: 1 mm/pixel
   double walljson_scalefactor = 0.001;      // wall json is in mm
   bool exportOBJ = false, useFaroPano = false;
+  Vec3d scan_translation_offset(0, 0, 0);
   //bool exportSphere = false;
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
@@ -72,6 +73,7 @@ int main(int ac, char *av[]) {
         ("exgeom", po::value< int >(), "export textured geometry as .obj")
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ("scan", po::value<std::string>(), "use only this scan")
+        ("scanoffset", po::value<std::vector<double>>(), "translation offset")
         ;
 
     po::variables_map vm;
@@ -99,6 +101,13 @@ int main(int ac, char *av[]) {
     if (vm.count("scan")) { specificscan = vm["scan"].as<std::string>(); }
     if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
     if (vm.count("output")) { aligncmd = vm["output"].as<std::string>(); }
+    if (vm.count("scanoffset"))
+    {
+        std::vector<double> so = vm["scanoffset"].as<std::vector<double>>();
+        scan_translation_offset[0] = so[0];
+        scan_translation_offset[1] = so[1];
+        scan_translation_offset[2] = so[2];
+    }
     exportOBJ = (vm.count("exgeom") > 0);
     useFaroPano = (vm.count("usefaroimage") > 0);
     
