@@ -123,7 +123,7 @@ RGB SphericalPanoramaImageProjection::getColorProjection(const Vec3d &pos) const
     pixel[2] = pano((int)(texc[0] * pano.width()), (int)(texc[1] * pano.height()), 2);
 #else
     // bilinear interpolation
-    Vec3d pix = pano.bilinear<Vec3d>(texc[0] * (pano.width()-1), (texc[1]) * (pano.height()-1));
+    Vec3d pix = pano.bilinear<Vec3d>(texc[0] * ((double)pano.width()-1.0), (texc[1]) * ((double)pano.height()-1.0));
     pixel[0] = (unsigned char)pix[0];
     pixel[1] = (unsigned char)pix[1];
     pixel[2] = (unsigned char)pix[2];

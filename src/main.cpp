@@ -73,7 +73,7 @@ int main(int ac, char *av[]) {
         ("exgeom", po::value< int >(), "export textured geometry as .obj")
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ("scan", po::value<std::string>(), "use only this scan")
-        ("scanoffset", po::value<std::vector<double>>(), "translation offset")
+        ("scanoffset", po::value<std::vector<double>>()->multitoken(), "translation offset")
         ;
 
     po::variables_map vm;
@@ -206,7 +206,7 @@ int main(int ac, char *av[]) {
                       double x = item["pose"]["translation"]["x"].GetDouble();
                       double y = item["pose"]["translation"]["y"].GetDouble();
                       double z = item["pose"]["translation"]["z"].GetDouble();
-                      new_scan.setPosition(Vec3d(x, y, z));
+                      new_scan.setPosition(Vec3d(x, y, z)+scan_translation_offset);
                   }
                   // orientation
                 {

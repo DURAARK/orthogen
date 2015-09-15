@@ -98,11 +98,16 @@ public:
   // bilinear interpolation using a single channel
   template <typename VTYPE>
   inline const VTYPE bilinear(const double x, const double y) const {
-    const int l = (int)floor(x);
+      const int ix = (int)floor(x), iy = (int)floor(y);
+    const int l = ix < 0 ? 0 : ix;
     const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
-    const int t = (int)floor(y);
+    const int t = iy < 0 ? 0 : iy;
     const int b = t >= ((int)H - 1) ? (int)H - 1 : t + 1;
-
+    if (!((l >= 0 && l <= (int)W && t >= 0 && t <= (int)H)
+        && (r >= 0 && r <= (int)W && b >= 0 && b <= (int)H)))
+    {
+        std::cout << "l:" << l << " t:" << t << " r:" << r << " b:" << b << std::endl;
+    }
     VTYPE q11 = rgbT<VTYPE>(l, t), q21 = rgbT<VTYPE>(r, t),
           q12 = rgbT<VTYPE>(l, b), q22 = rgbT<VTYPE>(r, b);
     return q11 * (r - x) * (b - y) + q21 * (x - l) * (b - y) +
@@ -117,8 +122,8 @@ public:
     const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
     const int t = floor(y) < 0 ? 0 : (int)floor(y);
     const int b = t >= ((int)H - 1) ? (int)H - 1 : t + 1;
-    assert(l >= 0 && l <= W && t >= 0 && t <= H);
-    assert(r >= 0 && r <= W && b >= 0 && b <= H);
+    assert(l >= 0 && l <= (int)W && t >= 0 && t <= (int)H);
+    assert(r >= 0 && r <= (int)W && b >= 0 && b <= (int)(int)H);
     VTYPE q11 = (*this)(l, t, ch), q21 = (*this)(r, t, ch),
           q12 = (*this)(l, b, ch), q22 = (*this)(r, b, ch);
     return q11 * (r - x) * (b - y) + q21 * (x - l) * (b - y) +
