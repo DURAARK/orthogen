@@ -58,6 +58,7 @@ int main(int ac, char *av[]) {
   std::string output = "ortho";
   std::string panopath = ".\\";
   std::string aligncmd = "panoalign.exe";
+  std::string specificscan = "";
 
   try {
     po::options_description desc("commandline options");
@@ -70,6 +71,7 @@ int main(int ac, char *av[]) {
         ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
         ("exgeom", po::value< int >(), "export textured geometry as .obj")
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
+        ("scan", po::value<std::string>(), "use only this scan")
         ;
 
     po::variables_map vm;
@@ -94,7 +96,7 @@ int main(int ac, char *av[]) {
             panopath.append("/");
         }
     }
-
+    if (vm.count("scan")) { specificscan = vm["scan"].as<std::string>(); }
     if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
     if (vm.count("output")) { aligncmd = vm["output"].as<std::string>(); }
     exportOBJ = (vm.count("exgeom") > 0);
@@ -129,85 +131,104 @@ int main(int ac, char *av[]) {
         }
 
       {
+
+
+
           for (rapidjson::SizeType i = 0, ie = arr.Size(); i < ie; ++i)
           {
               const rapidjson::Value& item = arr[i];
-              SphericalPanoramaImageProjection new_scan;
 
-
-              new_scan.basename = item["name"].GetString();
-              std::cout << "found scan " << new_scan.basename << std::endl;
-              // translation
+              if ((specificscan.length() == 0) ||
+                  ((specificscan.length() > 0) && specificscan.compare(item["name"].GetString()) == 0)
+                  )
               {
-                  double x = item["pose"]["translation"]["x"].GetDouble();
-                  double y = item["pose"]["translation"]["y"].GetDouble();
-                  double z = item["pose"]["translation"]["z"].GetDouble();
-                  new_scan.setPosition(Vec3d(x, y, z));
+                  SphericalPanoramaImageProjection new_scan;
+                  new_scan.basename = item["name"].GetString();
+
+                  std::cout << "found scan " << new_scan.basename << std::endl;
+                  bool useFaro = useFaroPano;
+                  // load panoramic image
+                  {
+                      auto loadFaro = [&new_scan, &panopath](){
+                          std::ostringstream ss;
+                          ss << panopath << new_scan.basename << "_Faro.jpg";
+                          Image img;
+                          if (loadJPEG(ss.str().c_str(), img)) {
+                              new_scan.setPanoramicImage(img);
+                          }
+                          else {
+                              std::cout << "[ERROR] loading Faro panoramic image." << std::endl;
+                          }
+                      };
+
+                      if (useFaro) {
+                          loadFaro();
+                      }
+                      else {
+                          // load aligned manual image, align if not found
+                          std::ostringstream ss;
+                          ss << panopath << new_scan.basename << "_aligned.jpg";
+                          Image img;
+                          if (loadJPEG(ss.str().c_str(), img)) {
+                              new_scan.setPanoramicImage(img);
+                          }
+                          else {
+                              std::cout << "aligned image not found, aligning..." << std::endl;
+                              std::ostringstream cmd;
+                              cmd.precision(std::numeric_limits<double>::max_digits10);
+                              cmd << aligncmd << " ";
+                              cmd << "--imsrc " << panopath << new_scan.basename << "_Faro.jpg ";
+                              cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
+                              cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
+                              cmd << "--selrange " << item["sphericalbounds"]["elevation_minimum"].GetDouble() << " " << item["sphericalbounds"]["elevation_maximum"].GetDouble() << " ";
+                              std::system(cmd.str().c_str());
+                              if (!loadJPEG(ss.str().c_str(), img))
+                              {
+                                  std::cout << "could not align image, using faro image." << std::endl;
+                                  useFaro = true;
+                                  loadFaro();
+                              }
+                          }
+                      }
+                  }
+
+                  // translation
+                  {
+                      double x = item["pose"]["translation"]["x"].GetDouble();
+                      double y = item["pose"]["translation"]["y"].GetDouble();
+                      double z = item["pose"]["translation"]["z"].GetDouble();
+                      new_scan.setPosition(Vec3d(x, y, z));
+                  }
+                  // orientation
+                {
+                    double w = item["pose"]["rotation"]["w"].GetDouble();
+                    double x = item["pose"]["rotation"]["x"].GetDouble();
+                    double y = item["pose"]["rotation"]["y"].GetDouble();
+                    double z = item["pose"]["rotation"]["z"].GetDouble();
+                    Quaterniond quaternion(w, x, y, z);
+                    std::cout << " applying quaternion [" << quaternion.x() << ","
+                        << quaternion.y() << "," << quaternion.z() << "," << quaternion.w()
+                        << "]" << std::endl;                new_scan.applyRotation(quaternion);
+                }
+                std::cout << "pose: ";
+                new_scan.printPose();
+
+                // bounds
+                {
+                    if (useFaro) {
+                        new_scan.elevationRange[0] = item["sphericalbounds"]["elevation_minimum"].GetDouble();
+                        new_scan.elevationRange[1] = item["sphericalbounds"]["elevation_maximum"].GetDouble();
+                        //new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
+                        //new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
+                    }
+                    std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
+                        << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
+                }
+                               
+
+                scans.push_back(new_scan);
+                std::cout << "-------------------------------------" << std::endl;
               }
-              // orientation
-            {
-                double w = item["pose"]["rotation"]["w"].GetDouble();
-                double x = item["pose"]["rotation"]["x"].GetDouble();
-                double y = item["pose"]["rotation"]["y"].GetDouble();
-                double z = item["pose"]["rotation"]["z"].GetDouble();
-                Quaterniond quaternion(w, x, y, z);
-                std::cout << " applying quaternion [" << quaternion.x() << ","
-                    << quaternion.y() << "," << quaternion.z() << "," << quaternion.w()
-                    << "]" << std::endl;                new_scan.applyRotation(quaternion);
-            }
-            std::cout << "pose: ";
-            new_scan.printPose();
-
-            // bounds
-            {
-                if (useFaroPano) {
-                    new_scan.elevationRange[0] = item["sphericalbounds"]["elevation_minimum"].GetDouble();
-                    new_scan.elevationRange[1] = item["sphericalbounds"]["elevation_maximum"].GetDouble();
-                    new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
-                    new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
-                }
-                std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
-                          << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
-            }
-
-            // load panoramic image
-            {
-                if (useFaroPano) {
-                    std::ostringstream ss;
-                    ss << panopath << new_scan.basename << "_Faro.jpg";
-                    Image img;
-                    if (loadJPEG(ss.str().c_str(), img)) {
-                        new_scan.setPanoramicImage(img);
-                    }
-                    else {
-                        std::cout << "[ERROR] loading Faro panoramic image." << std::endl;
-                    }
-                }
-                else {
-                    // load aligned manual image, align if not found
-                    std::ostringstream ss;
-                    ss << panopath << new_scan.basename << "_aligned.jpg";
-                    Image img;
-                    if (loadJPEG(ss.str().c_str(), img)) {
-                        new_scan.setPanoramicImage(img);
-                    }
-                    else {
-                        std::cout << "aligned image not found, aligning..." << std::endl;
-                        std::ostringstream cmd;
-                        cmd.precision(std::numeric_limits<double>::max_digits10);
-                        cmd << aligncmd << " ";
-                        cmd << "--imsrc " << panopath << new_scan.basename << "_Faro.jpg ";
-                        cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
-                        cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
-                        cmd << "--selrange " << new_scan.elevationRange[0] << " " << new_scan.elevationRange[1] << " ";
-                        std::system(cmd.str().c_str());
-                        loadJPEG(ss.str().c_str(), img);
-                    }
-                }
-            }
-
-            scans.push_back(new_scan);
-            std::cout << "-------------------------------------" << std::endl;
           }
       }
     }
