@@ -100,9 +100,9 @@ public:
   inline const VTYPE bilinear(const double x, const double y) const {
       const int ix = (int)floor(x), iy = (int)floor(y);
     const int l = ix < 0 ? 0 : ix;
-    const int r = l >= ((int)W - 1) ? (int)W - 1 : l + 1;
+    const int r = l >= ((int)W - 1) ? ((int)W - 1) < 0 ? 0 : (int)W-1 : l + 1;
     const int t = iy < 0 ? 0 : iy;
-    const int b = t >= ((int)H - 1) ? (int)H - 1 : t + 1;
+    const int b = t >= ((int)H - 1) ? ((int)H - 1) < 0 ? 0 : (int)H-1 : t + 1;
     if (!((l >= 0 && l <= (int)W && t >= 0 && t <= (int)H)
         && (r >= 0 && r <= (int)W && b >= 0 && b <= (int)H)))
     {
