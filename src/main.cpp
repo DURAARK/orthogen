@@ -60,6 +60,7 @@ int main(int ac, char *av[]) {
   std::string panopath = ".\\";
   std::string aligncmd = "panoalign.exe";
   std::string specificscan = "";
+  std::string specificwall = "";
 
   try {
     po::options_description desc("commandline options");
@@ -73,6 +74,7 @@ int main(int ac, char *av[]) {
         ("exgeom", po::value< int >(), "export textured geometry as .obj")
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ("scan", po::value<std::string>(), "use only this scan")
+        ("wall", po::value<std::string>(), "use only this wall")
         ("scanoffset", po::value<std::vector<double>>()->multitoken(), "translation offset")
         ;
 
@@ -99,6 +101,7 @@ int main(int ac, char *av[]) {
         }
     }
     if (vm.count("scan")) { specificscan = vm["scan"].as<std::string>(); }
+    if (vm.count("wall")) { specificwall = vm["wall"].as<std::string>(); }
     if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
     if (vm.count("output")) { aligncmd = vm["output"].as<std::string>(); }
     if (vm.count("scanoffset"))
@@ -234,8 +237,13 @@ int main(int ac, char *av[]) {
                         << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
                 }
                                
-
-                scans.push_back(new_scan);
+                if (new_scan.pano.isValid()) {
+                    scans.push_back(new_scan);
+                }
+                else {
+                    std::cout << "[WARNING] ignoring scan " + new_scan.basename 
+                              << " because no valid pano was found." << std::endl;
+                }
                 std::cout << "-------------------------------------" << std::endl;
               }
           }
@@ -313,87 +321,91 @@ int main(int ac, char *av[]) {
         quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
 
         for (auto const &wall : walls) {
-            std::ostringstream outfile;
-            outfile << output << "_" << wall.id;
-            std::cout << "* Processing " << outfile.str() << std::endl;;
-            outfile << ".jpg";
+            if (specificwall.length() == 0 ||
+                specificwall.compare(wall.id)==0)
+            {
+                std::ostringstream outfile;
+                outfile << output << "_" << wall.id;
+                std::cout << "* Processing " << outfile.str() << std::endl;;
+                outfile << ".jpg";
 
-            // perform orthophoto projection
-            Vec3d W = wall.W();
-            Vec3d H = wall.H();
-            double width = W.norm();
-            double height = H.norm();
-            Vec3d xdir = W; xdir.normalize();
-            Vec3d ydir = H; ydir.normalize();
+                // perform orthophoto projection
+                Vec3d W = wall.W();
+                Vec3d H = wall.H();
+                double width = W.norm();
+                double height = H.norm();
+                Vec3d xdir = W; xdir.normalize();
+                Vec3d ydir = H; ydir.normalize();
 
-            Image ortho;
-            ortho.initialize((int)(width / resolution) + 1, (int)(height / resolution) + 1, 24);
+                Image ortho;
+                ortho.initialize((int)(width / resolution) + 1, (int)(height / resolution) + 1, 24);
 
-            prvec(wall.V[0], " V0:");
-            prvec(wall.V[1], " V1:");
-            std::cout << std::endl;
-            prvec(wall.V[2], " V2:");
-            prvec(wall.V[3], " V3:");
-            std::cout << std::endl;
-            std::cout << ortho.width() << "x" << ortho.height() << " n: " << wall.pose.Z << std::endl;
+                prvec(wall.V[0], " V0:");
+                prvec(wall.V[1], " V1:");
+                std::cout << std::endl;
+                prvec(wall.V[2], " V2:");
+                prvec(wall.V[3], " V3:");
+                std::cout << std::endl;
+                std::cout << ortho.width() << "x" << ortho.height() << " n: " << wall.pose.Z << std::endl;
 
 
 #pragma omp parallel for
-            for (int y = 0; y < ortho.height(); ++y)
-            {
-                const Vec3d vecy = H * (y / (double)ortho.height());
-                for (int x = 0; x < ortho.width(); ++x)
+                for (int y = 0; y < ortho.height(); ++y)
                 {
-                    // calculate position in world coordinates
-                    const Vec3d vecx = W * (x / (double)ortho.width());
-                    const Vec3d position = wall.V[0] + vecx + vecy;
-
-                    // project color value: choose nearest scan
-                    double neardist = DBL_MAX;
-                    int scanid=-1;
-                    for (int i = 0; i < scans.size(); ++i)
+                    const Vec3d vecy = H * (y / (double)ortho.height());
+                    for (int x = 0; x < ortho.width(); ++x)
                     {
-                        auto const &scan = scans[i];
-                        double dist = (position - scan.pose.O).norm();
-                        if (dist < neardist) {
-                            neardist = dist;
-                            scanid = i;
+                        // calculate position in world coordinates
+                        const Vec3d vecx = W * (x / (double)ortho.width());
+                        const Vec3d position = wall.V[0] + vecx + vecy;
+
+                        // project color value: choose nearest scan
+                        double neardist = DBL_MAX;
+                        int scanid = -1;
+                        for (int i = 0; i < scans.size(); ++i)
+                        {
+                            auto const &scan = scans[i];
+                            double dist = (position - scan.pose.O).norm();
+                            if (dist < neardist) {
+                                neardist = dist;
+                                scanid = i;
+                            }
+                        }
+                        if (scanid != -1)
+                        {
+                            RGB color = scans[scanid].getColorProjection(position);
+                            ortho.setRGB(x, y, color);
                         }
                     }
-                    if (scanid!=-1) 
-                    {
-                        RGB color = scans[scanid].getColorProjection(position);
-                        ortho.setRGB(x, y, color);
-                    }
                 }
-            }
 
-            saveJPEG(outfile.str().c_str(), ortho);
+                saveJPEG(outfile.str().c_str(), ortho);
 
-            std::ostringstream matname, texname;
-            matname << output << "_" << wall.id;
-            texname << output << "_" << wall.id << ".jpg";
+                std::ostringstream matname, texname;
+                matname << output << "_" << wall.id;
+                texname << output << "_" << wall.id << ".jpg";
 
-            if (exportOBJ) {
-                // create quad geometry, quads always use the same texcoordinates
-                myIFS::IFSINDICES face;
-                myIFS::IFSINDICES facetc;
-                face.push_back(quadgeometry.vertex2index(wall.V[0]));
-                facetc.push_back(0);
-                face.push_back(quadgeometry.vertex2index(wall.V[1]));
-                facetc.push_back(1);
-                face.push_back(quadgeometry.vertex2index(wall.V[2]));
-                facetc.push_back(2);
-                face.push_back(quadgeometry.vertex2index(wall.V[3]));
-                facetc.push_back(3);
-                quadgeometry.faces.push_back(face);
-                quadgeometry.facetexc.push_back(facetc);
-                quadgeometry.materials.push_back(
-                    IFS::Material(matname.str(), texname.str()));
-                quadgeometry.facematerial.push_back(quadgeometry.materials.size() -
-                    1);
-                assert(quadgeometry.faces.size() == quadgeometry.facetexc.size() 
-                    && quadgeometry.faces.size() == quadgeometry.facematerial.size());
+                if (exportOBJ) {
+                    // create quad geometry, quads always use the same texcoordinates
+                    myIFS::IFSINDICES face;
+                    myIFS::IFSINDICES facetc;
+                    face.push_back(quadgeometry.vertex2index(wall.V[0]));
+                    facetc.push_back(0);
+                    face.push_back(quadgeometry.vertex2index(wall.V[1]));
+                    facetc.push_back(1);
+                    face.push_back(quadgeometry.vertex2index(wall.V[2]));
+                    facetc.push_back(2);
+                    face.push_back(quadgeometry.vertex2index(wall.V[3]));
+                    facetc.push_back(3);
+                    quadgeometry.faces.push_back(face);
+                    quadgeometry.facetexc.push_back(facetc);
+                    quadgeometry.materials.push_back(
+                        IFS::Material(matname.str(), texname.str()));
+                    quadgeometry.facematerial.push_back(quadgeometry.materials.size() -
+                        1);
+                    assert(quadgeometry.faces.size() == quadgeometry.facetexc.size()
+                        && quadgeometry.faces.size() == quadgeometry.facematerial.size());
+                }
             }
 
         }
