@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <limits>
 #include <chrono>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <cstdlib>
 
@@ -24,7 +26,7 @@
 #include "projection.h"
 #include "meanshift.h"
 #include "extraction.h"
-
+#include "normenc.h"
 
 namespace po = boost::program_options;
 
@@ -48,6 +50,7 @@ int main(int ac, char *av[]) {
   // main application state
   std::vector<SphericalPanoramaImageProjection> scans;
   std::vector<Quad3Dd> walls;
+  std::unordered_map<std::string, std::unordered_set<int>> room;    // maps scans to room id
 
   double resolution = 0.001;                // default: 1 mm/pixel
   double walljson_scalefactor = 0.001;      // wall json is in mm
@@ -66,16 +69,17 @@ int main(int ac, char *av[]) {
     po::options_description desc("commandline options");
     desc.add_options()
         ("help", "show this help message")
-        ("walljson", po::value<std::string>(), "input wall json [.json]")
-        ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
-        ("panopath", po::value<std::string>(), "path to pano images")
         ("align", po::value<std::string>(), "align executable")
-        ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
+        ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
         ("exgeom", po::value< int >(), "export textured geometry as .obj")
-        ("usefaroimage", po::value< int >(), "use pano from faro scanner")
-        ("scan", po::value<std::string>(), "use only this scan")
-        ("wall", po::value<std::string>(), "use only this wall")
+        ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
+        ("panopath", po::value<std::string>(), "path to pano images")
+        ("resolution", po::value< double >(), "resolution [1mm/pixel]")
+        ("scan", po::value<std::string>(), "if specified, only this scan will be considered")
         ("scanoffset", po::value<std::vector<double>>()->multitoken(), "translation offset")
+        ("usefaroimage", po::value< int >(), "use pano from faro scanner")
+        ("wall", po::value<std::string>(), "use only this wall")
+        ("walljson", po::value<std::string>(), "input wall json [.json]")
         ;
 
     po::variables_map vm;
@@ -103,7 +107,9 @@ int main(int ac, char *av[]) {
     if (vm.count("scan")) { specificscan = vm["scan"].as<std::string>(); }
     if (vm.count("wall")) { specificwall = vm["wall"].as<std::string>(); }
     if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
-    if (vm.count("output")) { aligncmd = vm["output"].as<std::string>(); }
+    if (vm.count("output")) { output = vm["output"].as<std::string>(); }
+    if (vm.count("resolution")) { resolution = vm["output"].as<double>() / 1000.0; }
+
     if (vm.count("scanoffset"))
     {
         std::vector<double> so = vm["scanoffset"].as<std::vector<double>>();
@@ -143,9 +149,6 @@ int main(int ac, char *av[]) {
         }
 
       {
-
-
-
           for (rapidjson::SizeType i = 0, ie = arr.Size(); i < ie; ++i)
           {
               const rapidjson::Value& item = arr[i];
@@ -238,6 +241,7 @@ int main(int ac, char *av[]) {
                 }
                                
                 if (new_scan.pano.isValid()) {
+                    new_scan.id = (int)scans.size();
                     scans.push_back(new_scan);
                 }
                 else {
@@ -297,6 +301,7 @@ int main(int ac, char *av[]) {
 
                     Quad3Dd wallgeometry(v0,v1,v2,v3);
                     wallgeometry.id = wall["attributes"]["id"].GetString();
+                    wallgeometry.roomid = wall["attributes"]["roomid"].GetString();
                     walls.push_back(wallgeometry);
                 }
             }
@@ -307,8 +312,126 @@ int main(int ac, char *av[]) {
 
     }
 
+    // -------------------------------------------------- BUILD ROOM INDEX
+
+    // assign scan to room if inside OBB of room walls
+    {
+        struct Room
+        {
+            std::unordered_set<int> walls;
+            Pose pose;
+            AABB3D bb;  // in local coordinates
+        };
+        std::unordered_map< std::string, Room > rooms;
+
+        // build room index
+        {
+            int i = 0;
+            for (auto &w : walls)
+            {
+                rooms[w.roomid].walls.insert(i);
+                ++i;
+            }
+        }
+
+        const Vec3d UP(0, 0, 1);
+        NormalEncoding N(5);
+        std::cout << "obb fit for " << N.getMaximum() << "directions" << std::endl;
+
+
+        // fit room bb
+        for (auto &r : rooms)
+        {    
+            // origin: arithmetic middle of wall coordinates
+            r.second.pose.O = Vec3d(0, 0, 0);
+            double s = 1.0/(r.second.walls.size() * 4);
+            for (auto &wid : r.second.walls) {
+                for (int i = 0; i < 4; ++i){
+                    r.second.pose.O += walls[wid].V[i] * s;
+                }
+            }
+
+            // kind-of-brute-force-oriented-bounding-box-fit :)
+            double bestvol = DBL_MAX;
+            for (int i = 0, ie = N.getMaximum(); i < ie; ++i)
+            {
+                for (double wg = 0; wg < 2 * M_PI; wg += (2.0*M_PI) / 10)
+                {
+                    Pose pose;
+                    pose.O = r.second.pose.O;
+                    // calculate pose
+                    Quaterniond ROT, NROT;
+                    ROT = Eigen::AngleAxisd::AngleAxis(wg, UP);
+                    Vec3d n = N.i2n(i);
+                    NROT.FromTwoVectors(UP, n);
+                    pose.applyRotation(NROT * ROT);
+
+                    // calculate bounding box
+                    AABB3D bb;
+                    for (auto &wall : r.second.walls) {
+                        for (auto &v : walls[wall].V) {
+                            bb.insert(pose.world2pose(v));
+                        }
+                    }
+                    
+                    // calculate bb volume
+                    if (bb.volume() < bestvol)
+                    {
+                        bestvol = bb.volume();
+                        r.second.pose = pose;
+                        r.second.bb = bb;
+                    }
+                }
+            }
+        }
+
+        // DBG: export room bounding boxes
+        {
+            myIFS roombb;            
+            for (auto &r : rooms)
+            {
+                auto &bb = r.second.bb;
+                Vec3d mi = r.second.pose.pose2world(bb.bbmin);
+                Vec3d ma = r.second.pose.pose2world(bb.bbmax);
+
+                // push floor face
+                myIFS::IFSINDICES floor;
+                floor.push_back(roombb.vertex2index(Vec3d(mi[0], mi[1], mi[2])));
+                floor.push_back(roombb.vertex2index(Vec3d(mi[0], ma[1], mi[2])));
+                floor.push_back(roombb.vertex2index(Vec3d(ma[0], ma[1], mi[2])));
+                floor.push_back(roombb.vertex2index(Vec3d(ma[0], mi[1], mi[2])));
+                roombb.faces.push_back(floor);
+            }
+            std::ostringstream objname;
+            objname << output << "rooms.obj";
+            IFS::exportOBJ(roombb, objname.str(), "# OrthoGen textured quads\n");
+        }
+
+
+        for (auto &s : scans)
+        {
+            for (auto &r : rooms)
+            {
+                if (r.second.bb.inside(s.pose.O))
+                {
+                    room[r.first].insert(s.id);
+                }
+            }
+        }
+        for (auto &r : room)
+        {
+            std::cout << "room " << r.first << " : ";
+            for (auto &s : r.second) 
+            {
+                std::cout << scans[s].basename << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
     std::cout << "# # # # # # # # # # # # #" << std::endl;
     std::cout << "parsed " << scans.size() << " scans and " << walls.size() << " walls." << std::endl;
+    // -------------------------------------------------- EXPORT ORTHO PHOTOS
 
     {
         // export walls

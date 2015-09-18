@@ -14,9 +14,18 @@ namespace OrthoGen {
         OrthoGen::Vec3d Y;
         OrthoGen::Vec3d Z;
 
-        // scanner coordinate system is X-right, Y-front, Z-up
-        inline Pose() : O(0, 0, 0), X(-1, 0, 0), Y(0, 1, 0), Z(0, 0, 1)
+        inline void reset()
         {
+            O = Vec3d(0, 0, 0);
+            X = Vec3d(-1, 0, 0);
+            Y = Vec3d(0, 1, 0);
+            Z = Vec3d(0, 0, 1);
+        }
+
+        // scanner coordinate system is X-right, Y-front, Z-up
+        inline Pose()
+        {
+            reset();
         }
         inline Pose(const Vec3d &o, const Vec3d &x, const Vec3d &y, const Vec3d &z)
             : O(o), X(x), Y(y), Z(z)

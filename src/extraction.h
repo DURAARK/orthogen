@@ -52,6 +52,17 @@ namespace OrthoGen
             }
         }
 
+        bool inside(const Vec3d &p) const
+        {
+            return (p[0] >= bbmin[0] && p[0] <= bbmax[0] &&
+                p[1] >= bbmin[1] && p[1] <= bbmax[1] &&
+                p[2] >= bbmin[2] && p[2] <= bbmax[2]);
+        }
+
+        double volume() const
+        {
+            return (bbmax[0] - bbmin[0])*(bbmax[1] - bbmin[1])*(bbmax[2] - bbmin[2]);
+        }
     };
 
     inline std::ostream & operator <<(std::ostream &os, const Vec3d &v)

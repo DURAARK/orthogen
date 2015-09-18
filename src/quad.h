@@ -16,6 +16,7 @@ struct Quad3D
     T V[4];                        // quad coordinates, in CCW Order starting top left
     Pose pose;
     std::string id;
+    std::string roomid;
 
     std::vector<size_t> tri_id;    // mesh triangles belonging to this quad
 
@@ -137,10 +138,8 @@ struct Quad3D
                 pclpoint << " " << (int)color[0] << " " << (int)color[1] << " " << (int)color[2];
                 pclfile << pclpoint.str() << std::endl;
 #endif
-
             }
         }
-        
         return img;
     }
 

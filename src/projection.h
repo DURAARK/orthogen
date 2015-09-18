@@ -28,6 +28,7 @@ namespace OrthoGen
 
     public:
         std::string basename;
+        int         id;
         Vec2d azimuthRange;
         Vec2d elevationRange;
 
