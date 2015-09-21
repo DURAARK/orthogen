@@ -54,7 +54,8 @@ int main(int ac, char *av[]) {
 
   double resolution = 0.001;                // default: 1 mm/pixel
   double walljson_scalefactor = 0.001;      // wall json is in mm
-  bool exportOBJ = false, useFaroPano = false;
+  bool exportOBJ = false, useFaroPano = false, exportRoomBB = false;
+  bool verbose = false;
   Vec3d scan_translation_offset(0, 0, 0);
   //bool exportSphere = false;
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
@@ -71,13 +72,15 @@ int main(int ac, char *av[]) {
         ("help", "show this help message")
         ("align", po::value<std::string>(), "align executable")
         ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
-        ("exgeom", po::value< int >(), "export textured geometry as .obj")
+        ("exgeom", po::value< int >(), "export textured geometry as .obj [0]/1")
+        ("exroombb", po::value< int >(), "export room bounding boxes as .obj [0]/1")
         ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
         ("panopath", po::value<std::string>(), "path to pano images")
         ("resolution", po::value< double >(), "resolution [1mm/pixel]")
         ("scan", po::value<std::string>(), "if specified, only this scan will be considered")
         ("scanoffset", po::value<std::vector<double>>()->multitoken(), "translation offset")
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
+        ("verbose", po::value< int >(), "print out verbose messages")
         ("wall", po::value<std::string>(), "use only this wall")
         ("walljson", po::value<std::string>(), "input wall json [.json]")
         ;
@@ -118,6 +121,8 @@ int main(int ac, char *av[]) {
         scan_translation_offset[2] = so[2];
     }
     exportOBJ = (vm.count("exgeom") > 0);
+    exportRoomBB= (vm.count("exroombb") > 0);
+    verbose = (vm.count("verbose") > 0);
     useFaroPano = (vm.count("usefaroimage") > 0);
     
     // parse jsons
@@ -159,7 +164,6 @@ int main(int ac, char *av[]) {
               {
                   SphericalPanoramaImageProjection new_scan;
                   new_scan.basename = item["name"].GetString();
-
                   std::cout << "found scan " << new_scan.basename << std::endl;
                   bool useFaro = useFaroPano;
                   // load panoramic image
@@ -188,7 +192,9 @@ int main(int ac, char *av[]) {
                               new_scan.setPanoramicImage(img);
                           }
                           else {
-                              std::cout << "aligned image not found, aligning..." << std::endl;
+                              if (verbose) {
+                                  std::cout << "aligned image not found, aligning..." << std::endl;
+                              }
                               std::ostringstream cmd;
                               cmd.precision(std::numeric_limits<double>::max_digits10);
                               cmd << aligncmd << " ";
@@ -221,12 +227,17 @@ int main(int ac, char *av[]) {
                     double y = item["pose"]["rotation"]["y"].GetDouble();
                     double z = item["pose"]["rotation"]["z"].GetDouble();
                     Quaterniond quaternion(w, x, y, z);
-                    std::cout << " applying quaternion [" << quaternion.x() << ","
-                        << quaternion.y() << "," << quaternion.z() << "," << quaternion.w()
-                        << "]" << std::endl;                new_scan.applyRotation(quaternion);
+                    if (verbose) {
+                        std::cout << " applying quaternion [" << quaternion.x() << ","
+                            << quaternion.y() << "," << quaternion.z() << "," << quaternion.w()
+                            << "]" << std::endl;
+                    }
+                    new_scan.applyRotation(quaternion);
                 }
-                std::cout << "pose: ";
-                new_scan.printPose();
+                if (verbose) {
+                    std::cout << "pose: ";
+                    new_scan.printPose();
+                }
 
                 // bounds
                 {
@@ -236,8 +247,10 @@ int main(int ac, char *av[]) {
                         //new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
                         //new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
                     }
-                    std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
-                        << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
+                    if (verbose) {
+                        std::cout << "bounds: elevation [" << new_scan.elevationRange[0] << "<>" << new_scan.elevationRange[1]
+                            << "] azimuth [" << new_scan.azimuthRange[0] << "<>" << new_scan.azimuthRange[1] << "]" << std::endl;
+                    }
                 }
                                
                 if (new_scan.pano.isValid()) {
@@ -248,7 +261,9 @@ int main(int ac, char *av[]) {
                     std::cout << "[WARNING] ignoring scan " + new_scan.basename 
                               << " because no valid pano was found." << std::endl;
                 }
-                std::cout << "-------------------------------------" << std::endl;
+                if (verbose) {
+                    std::cout << "-------------------------------------" << std::endl;
+                }
               }
           }
       }
@@ -336,8 +351,9 @@ int main(int ac, char *av[]) {
 
         const Vec3d UP(0, 0, 1);
         NormalEncoding N(5);
-        std::cout << "obb fit for " << N.getMaximum() << "directions" << std::endl;
-
+        if (verbose) {
+            std::cout << "obb fit for " << N.getMaximum() << "directions" << std::endl;
+        }
 
         // fit room bb
         for (auto &r : rooms)
@@ -363,7 +379,7 @@ int main(int ac, char *av[]) {
                     Quaterniond ROT, NROT;
                     ROT = Eigen::AngleAxisd::AngleAxis(wg, UP);
                     Vec3d n = N.i2n(i);
-                    NROT.FromTwoVectors(UP, n);
+                    NROT = Quaterniond::FromTwoVectors(UP, n);
                     pose.applyRotation(NROT * ROT);
 
                     // calculate bounding box
@@ -385,25 +401,39 @@ int main(int ac, char *av[]) {
             }
         }
 
-        // DBG: export room bounding boxes
+        if (exportRoomBB)
         {
             myIFS roombb;            
             for (auto &r : rooms)
             {
-                auto &bb = r.second.bb;
-                Vec3d mi = r.second.pose.pose2world(bb.bbmin);
-                Vec3d ma = r.second.pose.pose2world(bb.bbmax);
+                auto const &pose = r.second.pose;
+                const Vec3d BB[2] = { r.second.bb.bbmin, r.second.bb.bbmax };
+                const int MIN = 0, MAX = 1;
 
-                // push floor face
                 myIFS::IFSINDICES floor;
-                floor.push_back(roombb.vertex2index(Vec3d(mi[0], mi[1], mi[2])));
-                floor.push_back(roombb.vertex2index(Vec3d(mi[0], ma[1], mi[2])));
-                floor.push_back(roombb.vertex2index(Vec3d(ma[0], ma[1], mi[2])));
-                floor.push_back(roombb.vertex2index(Vec3d(ma[0], mi[1], mi[2])));
+                auto addVertex = [&roombb, &floor, &pose, &BB](const int MMX, const int MMY, const int MMZ)
+                {
+                    floor.push_back(roombb.vertex2index(pose.pose2world(
+                        Vec3d(BB[MMX][0], BB[MMY][1], BB[MMZ][2])
+                    )));
+                };
+    
+                // BOTTOM
+                addVertex(MIN, MIN, MIN);
+                addVertex(MIN, MAX, MIN);
+                addVertex(MAX, MAX, MIN);
+                addVertex(MAX, MIN, MIN);
+                roombb.faces.push_back(floor);
+                floor.clear();
+                // TOP
+                addVertex(MIN, MIN, MAX);
+                addVertex(MIN, MAX, MAX);
+                addVertex(MAX, MAX, MAX);
+                addVertex(MAX, MIN, MAX);
                 roombb.faces.push_back(floor);
             }
             std::ostringstream objname;
-            objname << output << "rooms.obj";
+            objname << output << "_rooms";
             IFS::exportOBJ(roombb, objname.str(), "# OrthoGen textured quads\n");
         }
 
@@ -412,24 +442,26 @@ int main(int ac, char *av[]) {
         {
             for (auto &r : rooms)
             {
-                if (r.second.bb.inside(s.pose.O))
+                if (r.second.bb.inside(r.second.pose.world2pose(s.pose.O)))
                 {
                     room[r.first].insert(s.id);
                 }
             }
         }
-        for (auto &r : room)
-        {
-            std::cout << "room " << r.first << " : ";
-            for (auto &s : r.second) 
+        if (verbose) {
+
+            for (auto &r : room)
             {
-                std::cout << scans[s].basename << " ";
+                std::cout << "room " << r.first << " : ";
+                for (auto &s : r.second)
+                {
+                    std::cout << scans[s].basename << " ";
+                }
+                std::cout << std::endl;
             }
-            std::cout << std::endl;
         }
     }
 
-    std::cout << "# # # # # # # # # # # # #" << std::endl;
     std::cout << "parsed " << scans.size() << " scans and " << walls.size() << " walls." << std::endl;
     // -------------------------------------------------- EXPORT ORTHO PHOTOS
 
@@ -449,7 +481,7 @@ int main(int ac, char *av[]) {
             {
                 std::ostringstream outfile;
                 outfile << output << "_" << wall.id;
-                std::cout << "* Processing " << outfile.str() << std::endl;;
+                std::cout << "processing " << outfile.str() << std::endl;;
                 outfile << ".jpg";
 
                 // perform orthophoto projection
@@ -462,15 +494,16 @@ int main(int ac, char *av[]) {
 
                 Image ortho;
                 ortho.initialize((int)(width / resolution) + 1, (int)(height / resolution) + 1, 24);
+                if (verbose) {
 
-                prvec(wall.V[0], " V0:");
-                prvec(wall.V[1], " V1:");
-                std::cout << std::endl;
-                prvec(wall.V[2], " V2:");
-                prvec(wall.V[3], " V3:");
-                std::cout << std::endl;
-                std::cout << ortho.width() << "x" << ortho.height() << " n: " << wall.pose.Z << std::endl;
-
+                    prvec(wall.V[0], " V0:");
+                    prvec(wall.V[1], " V1:");
+                    std::cout << std::endl;
+                    prvec(wall.V[2], " V2:");
+                    prvec(wall.V[3], " V3:");
+                    std::cout << std::endl;
+                    std::cout << ortho.width() << "x" << ortho.height() << " n: " << wall.pose.Z << std::endl;
+                }
 
 #pragma omp parallel for
                 for (int y = 0; y < ortho.height(); ++y)
@@ -482,16 +515,18 @@ int main(int ac, char *av[]) {
                         const Vec3d vecx = W * (x / (double)ortho.width());
                         const Vec3d position = wall.V[0] + vecx + vecy;
 
-                        // project color value: choose nearest scan
+                        // project color value: choose nearest scan, 
+                        // consider only scans from this room
                         double neardist = DBL_MAX;
                         int scanid = -1;
-                        for (int i = 0; i < scans.size(); ++i)
+
+                        for (auto &id : room[wall.roomid])
                         {
-                            auto const &scan = scans[i];
+                            auto const &scan = scans[id];
                             double dist = (position - scan.pose.O).norm();
                             if (dist < neardist) {
                                 neardist = dist;
-                                scanid = i;
+                                scanid = id;
                             }
                         }
                         if (scanid != -1)
@@ -535,7 +570,7 @@ int main(int ac, char *av[]) {
         if (exportOBJ)
         {
             std::ostringstream objname;
-            objname << output << "_geometry.obj";
+            objname << output << "_geometry";
             IFS::exportOBJ(quadgeometry, objname.str(), "# OrthoGen textured quads\n");
         }
     }
