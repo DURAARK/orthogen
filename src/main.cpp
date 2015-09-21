@@ -410,27 +410,55 @@ int main(int ac, char *av[]) {
                 const Vec3d BB[2] = { r.second.bb.bbmin, r.second.bb.bbmax };
                 const int MIN = 0, MAX = 1;
 
-                myIFS::IFSINDICES floor;
-                auto addVertex = [&roombb, &floor, &pose, &BB](const int MMX, const int MMY, const int MMZ)
+                myIFS::IFSINDICES face;
+                auto addVertex = [&roombb, &face, &pose, &BB](const int MMX, const int MMY, const int MMZ)
                 {
-                    floor.push_back(roombb.vertex2index(pose.pose2world(
+                    face.push_back(roombb.vertex2index(pose.pose2world(
                         Vec3d(BB[MMX][0], BB[MMY][1], BB[MMZ][2])
                     )));
                 };
     
                 // BOTTOM
+                face.clear();
                 addVertex(MIN, MIN, MIN);
                 addVertex(MIN, MAX, MIN);
                 addVertex(MAX, MAX, MIN);
                 addVertex(MAX, MIN, MIN);
-                roombb.faces.push_back(floor);
-                floor.clear();
+                roombb.faces.push_back(face);
                 // TOP
+                face.clear();
                 addVertex(MIN, MIN, MAX);
                 addVertex(MIN, MAX, MAX);
                 addVertex(MAX, MAX, MAX);
                 addVertex(MAX, MIN, MAX);
-                roombb.faces.push_back(floor);
+                roombb.faces.push_back(face);
+                // LEFT
+                face.clear();
+                addVertex(MIN, MIN, MIN);
+                addVertex(MIN, MAX, MIN);
+                addVertex(MIN, MAX, MAX);
+                addVertex(MIN, MIN, MAX);
+                // RIGHT
+                face.clear();
+                addVertex(MAX, MIN, MIN);
+                addVertex(MAX, MAX, MIN);
+                addVertex(MAX, MAX, MAX);
+                addVertex(MAX, MIN, MAX);
+                roombb.faces.push_back(face);
+                // FRONT
+                face.clear();
+                addVertex(MIN, MIN, MIN);
+                addVertex(MAX, MIN, MIN);
+                addVertex(MAX, MIN, MAX);
+                addVertex(MIN, MIN, MAX);
+                roombb.faces.push_back(face);
+                // BACK
+                face.clear();
+                addVertex(MIN, MAX, MIN);
+                addVertex(MAX, MAX, MIN);
+                addVertex(MAX, MAX, MAX);
+                addVertex(MIN, MAX, MAX);
+                roombb.faces.push_back(face);
             }
             std::ostringstream objname;
             objname << output << "_rooms";
