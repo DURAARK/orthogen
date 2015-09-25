@@ -206,6 +206,7 @@ int main(int ac, char *av[]) {
                               cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
                               cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
                               cmd << "--selrange " << item["sphericalbounds"]["elevation_minimum"].GetDouble() << " " << item["sphericalbounds"]["elevation_maximum"].GetDouble() << " ";
+                              std::cout << cmd.str();
                               std::system(cmd.str().c_str());
                               if (!loadJPEG(ss.str().c_str(), img))
                               {

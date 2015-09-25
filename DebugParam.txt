@@ -25,6 +25,9 @@ lores
 --im=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet02\lyslab_panorama.jpg --ig=I:\Projects\2014-04-DuraArk\DataSets\D5.2_TestDataSet02\LysLab_RoomGeo_Scan03.obj --rot 0.3473116843 -0.005407991293 -0.003936551737 0.9377258934 --trans 0 0 -65.6473 --res 1 --elevation -1.570796327 1.570796327 --scale m --exgeom  1 --exsphere 1
 
 
+--e57metadata I:\Projects\2014-04-DuraArk\DataSets\D5.4_Byg72\Byg72_e57metadata.json --walljson I:\Projects\2014-04-DuraArk\DataSets\D5.4_Byg72\Byg72_wall.json --panopath I:\Projects\2014-04-DuraArk\DataSets\D5.4_Byg72\pano --align I:\Projects\2014-04-DuraArk\dev\OrthoGen\MSVC2013_W64\Release\panoalign.exe --exgeom 1 --usefaroimage 1 --exroombb 1 --bbfitnormalprecision 8
+
+
 BUNNY
 =====
 

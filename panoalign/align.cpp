@@ -113,7 +113,7 @@ int main(int ac, char *av[]) {
         FinalOutput(x, y, ch) = imdst(x_, y_, ch);
     };
     FinalOutput.applyPixelPosCB(ShiftCB, FinalOutput.whole());
-    saveJPEG("dst_aligned.jpg", FinalOutput);
+    saveJPEG(outname.c_str(), FinalOutput);
     return 0;
   }
 
