@@ -56,6 +56,8 @@ int main(int ac, char *av[]) {
   double walljson_scalefactor = 0.001;      // wall json is in mm
   bool exportOBJ = false, useFaroPano = false, exportRoomBB = false;
   bool verbose = false;
+  int bb_normal_fit_precision = 5;
+
   Vec3d scan_translation_offset(0, 0, 0);
   //bool exportSphere = false;
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
@@ -71,6 +73,7 @@ int main(int ac, char *av[]) {
     desc.add_options()
         ("help", "show this help message")
         ("align", po::value<std::string>(), "align executable")
+        ("bbfitnormalprecision", po::value<int>(), "normal encoding precision for oriented bounding box fit for rooms [5]")
         ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
         ("exgeom", po::value< int >(), "export textured geometry as .obj [0]/1")
         ("exroombb", po::value< int >(), "export room bounding boxes as .obj [0]/1")
@@ -112,6 +115,7 @@ int main(int ac, char *av[]) {
     if (vm.count("align")) { aligncmd = vm["align"].as<std::string>(); }
     if (vm.count("output")) { output = vm["output"].as<std::string>(); }
     if (vm.count("resolution")) { resolution = vm["output"].as<double>() / 1000.0; }
+    if (vm.count("bbfitnormalprecision")) { bb_normal_fit_precision = vm["bbfitnormalprecision"].as<int>(); }
 
     if (vm.count("scanoffset"))
     {
@@ -124,7 +128,7 @@ int main(int ac, char *av[]) {
     exportRoomBB= (vm.count("exroombb") > 0);
     verbose = (vm.count("verbose") > 0);
     useFaroPano = (vm.count("usefaroimage") > 0);
-    
+
     // parse jsons
     // ================================================= E57 Metadata
     // - parse scans (pose, name, panorama)
@@ -350,7 +354,7 @@ int main(int ac, char *av[]) {
         }
 
         const Vec3d UP(0, 0, 1);
-        NormalEncoding N(5);
+        NormalEncoding N(bb_normal_fit_precision);
         if (verbose) {
             std::cout << "obb fit for " << N.getMaximum() << "directions" << std::endl;
         }
