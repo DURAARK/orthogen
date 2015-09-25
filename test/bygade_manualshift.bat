@@ -9,10 +9,16 @@ set align=%bindir%\panoalign.exe
 
 REM JUST PERFORM SHIFT
 
-set SHIFT=13500
-set IMG=Byg72_023
+rem set SHIFT=1800
+rem set IMG=Byg72_023
+rem %align% --imsrc %PANO%\%IMG%_Faro.jpg --imdst %PANO%\%IMG%_Manual.jpg --outname %PANO%\%IMG%_aligned.jpg --selrange %ELEVATION% --shift %SHIFT%
 
-%align% --imsrc %PANO%\%IMG%_Faro.jpg --imdst %PANO%\%IMG%_Manual.jpg --outname %PANO%\%IMG%_aligned.jpg --selrange %ELEVATION% --shift 12236
+rem set SHIFT=3100
+rem set IMG=Byg72_004008
+rem %align% --imsrc %PANO%\%IMG%_Faro.jpg --imdst %PANO%\%IMG%_Manual.jpg --outname %PANO%\%IMG%_aligned.jpg --selrange %ELEVATION% --shift %SHIFT%
 
+set SHIFT=1450
+set IMG=Byg72_005009
+%align% --imsrc %PANO%\%IMG%_Faro.jpg --imdst %PANO%\%IMG%_Manual.jpg --outname %PANO%\%IMG%_aligned.jpg --selrange %ELEVATION% --shift %SHIFT%
 
 pause
