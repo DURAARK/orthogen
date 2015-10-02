@@ -16,14 +16,14 @@ Furthermore, the project also creates an executable named "panoalign"
 that automatically aligns a manually taken image to the registered image
 from the faro scanner. The tool expects all panoramic images to be in 
 an folder, where each image is named according to the scan id in the
-e57 metadata: for each scan <scan_id>, the system tries to find an image
-named <scan_id>_aligned.jpg that contains the aligned manual 
+e57 metadata: for each scan id "scan_id", the system tries to find an image
+named "scan_id"_aligned.jpg that contains the aligned manual 
 acquired panoramic image of the scan.
 If the image is not found, the system tries to load the images
- <scan_id>_Manual.jpg and <scan_id>_Faro.jpg and tries to automatically
+ "scan_id"_Manual.jpg and "scan_id"_Faro.jpg and tries to automatically
 align the manual (high resolution) image  to the faro image using the
-panoalign tool. If <scan_id>_Manual.jpg is not found, the system uses
-the <scan_id>_Faro.jpg for projection as a last resort. If absolutely
+panoalign tool. If "scan_id"_Manual.jpg is not found, the system uses
+the "scan_id"_Faro.jpg for projection as a last resort. If absolutely
 no panoramic image can be found, the scan is ignored.
 
 # Build #
