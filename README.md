@@ -12,6 +12,10 @@ information from several scans / panoramic images. It parses the room
 network given from the IFC reconstruction and fits an oriented bounding 
 box for each room in order to automatically assign scanner positions to rooms.
 
+Furthermore, the project also creates an executable named "panoalign"
+that automatically aligns a manually taken image to the registered image
+from the faro scanner.
+
 # Build #
 
 The tool is written in C++ with dependencies on the following libraries:
