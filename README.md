@@ -1,11 +1,16 @@
 # DuraArk Orthophoto Generation Module #
 
 This tool extracts rectangular image patches from a given proxy geometry
-and a panoramic photograph of a scene. The patches are automatically
-identified from elements (triangles, quads) of the input geometry.
+(rectangular patches that correspond to walls) and panoramic photographs of a scene. 
+It automatically combines the data from several scans / panoramic images.
 
-See also the accompanying paper "Automatic Texture and Orthophoto Generation from registered panoramic views":
+See also the accompanying paper "Automatic Texture and Orthophoto Generation from registered panoramic views" (note that this paper was written for version 0.7.0)
 http://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XL-5-W4/131/2015/isprsarchives-XL-5-W4-131-2015.html
+
+Changes since version 0.7.0 include that the system now combines the 
+information from several scans / panoramic images. It parses the room
+network given from the IFC reconstruction and fits an oriented bounding 
+box for each room in order to automatically assign scanner positions to rooms.
 
 # Build #
 
@@ -13,6 +18,7 @@ The tool is written in C++ with dependencies on the following libraries:
 
 * boost [program options]  http://www.boost.org/
 * eigen http://eigen.tuxfamily.org/
+* RapidJSON https://github.com/miloyip/rapidjson
 
 CMake is used as build system.
 
@@ -21,19 +27,8 @@ CMake is used as build system.
 The tool is a simple commandline application. It accepts the following
 input:
 
-* the input geometry as an wavefront .OBJ file
-* the panoramic image as a .JPG, with elevation and azimuth range
-* pose information of the panoramic image with respect to the .OBJ
-coordinate system. This information is typically acquired from a 3D scan.
-The pose information is compatible with the pose information stored in E57
-format (translation x,y,z and quaternion rotation w,x,y,z)
-* for the quad clustering, two parameters have to be supplied:
-  * "normal direction clustering window size" influences the difference between normal 
-vector orientations that are clustered together, so a value means more 
-dissimilar normals will be clustered together (a value >2 makes no sense)
-  * "distance clustering window size" specifies which elements of similar normal direction
-are grouped into one quad, meaning that a higher value will group parallel elements
-within this distance size into one plane (distance measure in m)
+* a JSON file that contains the e57 metadata information from pointcloud scans
+* a JSON file that contains the wall/room meta information from the IFC reconstruction
 
 **Command line arguments**
 
@@ -41,26 +36,25 @@ within this distance size into one plane (distance measure in m)
 OrthoGen orthographic image generator for DuraArk
 developed by Fraunhofer Austria Research GmbH
 commandline options:
-  --help                show this help message
-  --im arg              input panoramic image [.jpg]
-  --ig arg              input geometry [.OBJ]
-  --res arg             resolution [mm/pixel], default 1mm/pixel
-  --trans arg           transformation [x,y,z]
-  --rot arg             rotation quaternion [w,x,y,z]
-  --elevation arg       elevation angle bounds [min..max], default
-                        [-PI/2..PI/2]
-  --azimuth arg         azimuth angle bounds [min..max], default [0..2*PI]
-  --exgeom arg          export (textured) geometry [OBJ] 0/1, default 0 (false)
-  --exquad arg          export extracted quads as (textured) geometry [OBJ]
-                        0/1, default 0 (false)
-  --exsphere arg        export panoramic sphere [OBJ] 0/1, default 0 (false)
-  --scale arg           scale of input coordinates (mm/cm/m), default m
-  --ncluster arg        geometry element normal direction clustering window
-                        size, default 0.3
-  --dcluster arg        geometry element planar distance clustering window size
-                        in m, default 0.1
+
+  --help                     show this help message
+  --align arg                align executable
+  --e57metadata arg          e57 metadata json [.json]
+  --walljson arg             input wall json [.json]
+  --exgeom arg               export textured geometry as .obj [0]/1
+  --exroombb arg             export room bounding boxes as .obj [0]/1
+  --output arg               output filename [.jpg] will be appended
+  --panopath arg             path to pano images
+  --resolution arg           resolution [1mm/pixel]
+  --scanoffset arg           translation offset
+  --usefaroimage arg         use pano from faro scanner
+  --verbose arg              print out verbose messages
+  --scan arg                 if specified, only this scan will be considered
+  --wall arg                 if specified, only this wall will be considered
+  --bbfitnormalprecision arg normal encoding precision for oriented bounding
+                             box fit for rooms [8]
 ```
 
 **Example usage**
 
-```orthogen.exe --im=pano.jpg --ig=geometry.obj --rot 0.9592315236 -0.00766527459 -0.007286718304 0.2824234966 --trans 0 0 141.6600828 --res 1 --elevation -1.5707963 1.5707963 --scale m --exgeom  1 --exsphere 1 --exquad 1```
+```orthogen.exe --e57metadata e57metadata.json --walljson wall.json --panopath .\pano --align .\align\panoalign.exe --exgeom 1 --exroombb 1```

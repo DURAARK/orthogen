@@ -56,7 +56,7 @@ int main(int ac, char *av[]) {
   double walljson_scalefactor = 0.001;      // wall json is in mm
   bool exportOBJ = false, useFaroPano = false, exportRoomBB = false;
   bool verbose = false;
-  int bb_normal_fit_precision = 5;
+  int bb_normal_fit_precision = 8;
 
   Vec3d scan_translation_offset(0, 0, 0);
   //bool exportSphere = false;
@@ -73,7 +73,7 @@ int main(int ac, char *av[]) {
     desc.add_options()
         ("help", "show this help message")
         ("align", po::value<std::string>(), "align executable")
-        ("bbfitnormalprecision", po::value<int>(), "normal encoding precision for oriented bounding box fit for rooms [5]")
+        ("bbfitnormalprecision", po::value<int>(), "normal encoding precision for oriented bounding box fit for rooms [8]")
         ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
         ("exgeom", po::value< int >(), "export textured geometry as .obj [0]/1")
         ("exroombb", po::value< int >(), "export room bounding boxes as .obj [0]/1")
