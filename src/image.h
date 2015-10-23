@@ -268,7 +268,7 @@ void resizeBlit(const IMGTYPE &src, const typename IMGTYPE::AABB2D &spos,
       double rx = dpos.x2rel(x), ry = dpos.y2rel(y);
       double sx = spos.rel2x(rx), sy = spos.rel2y(ry);
       if (x >= 0 && x < dst.width() && y >= 0 && y < dst.height())
-        dst(x, y, c) = (typename IMGTYPE::PixelT) src.bilinear2<double>(sx, sy, c);
+        dst(x, y, c) = (typename IMGTYPE::PixelT) src.template bilinear2<double>(sx, sy, c);
     }
   };
   dst.applyPixelPosCB(CB, dpos);
