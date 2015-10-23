@@ -10,9 +10,10 @@
 #include "jpeglib.h"
 
 template <class T> struct ImageT {
+
   struct AABB2D {
     int l, t, w, h;
-    inline AABB2D(int L, int T, int W, int H) : l(L), t(T), w(W), h(H) {}
+    inline AABB2D(int LE, int TO, int WI, int HE) : l(LE), t(TO), w(WI), h(HE) {}
     inline int r() const { return l + w; }
     inline int b() const { return t + h; }
     inline double x2rel(double x) const { return (x - (double)l) / (double)w; }
@@ -227,11 +228,11 @@ typedef ImageT<float> ImageF;
 typedef ImageT<double> ImageD;
 
 template <class SRCTYPE, class DSTTYPE>
-DSTTYPE convertImage(const SRCTYPE &img, double factor = 1.0) {
+DSTTYPE convertImage(const SRCTYPE &img, const double factor = 1.0) {
   DSTTYPE result;
   const int w = img.width(), h = img.height(), c = img.channels();
   result.resize(w, h, img.channels());
-  auto CB = [](int x, int y, int c, typename SRCTYPE::PixelT v) {
+  auto CB = [&result,factor,&img](int x, int y, int c, typename SRCTYPE::PixelT v) {
     result(x, y, c) = (DSTTYPE::PixelT)(img(x, y, c) * factor);
   };
   img.applyPixelCB(CB, img.whole());
