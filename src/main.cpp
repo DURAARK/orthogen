@@ -390,7 +390,7 @@ int main(int ac, char *av[]) {
                     pose.O = r.second.pose.O;
                     // calculate pose
                     Quaterniond ROT, NROT;
-                    ROT = Eigen::AngleAxisd::AngleAxis(wg, UP);
+                    ROT = AngleAxisd(wg, UP);
                     Vec3d n = N.i2n(i);
                     NROT = Quaterniond::FromTwoVectors(UP, n);
                     pose.applyRotation(NROT * ROT);
