@@ -62,6 +62,8 @@ int main(int ac, char *av[]) {
   //bool exportSphere = false;
   std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
+  std::cout << "--help for options." << std::endl;
+
   std::string output = "ortho";
   std::string panopath = ".\\";
   std::string aligncmd = "panoalign.exe";
@@ -72,9 +74,10 @@ int main(int ac, char *av[]) {
     po::options_description desc("commandline options");
     desc.add_options()
         ("help", "show this help message")
+        ("e57metadata", po::value<std::string>(), "e57 metadata json [.json] MANDATORY")
+        ("walljson", po::value<std::string>(), "input wall json [.json] MANDATORY")
         ("align", po::value<std::string>(), "align executable")
         ("bbfitnormalprecision", po::value<int>(), "normal encoding precision for oriented bounding box fit for rooms [8]")
-        ("e57metadata", po::value<std::string>(), "e57 metadata json [.json]")
         ("exgeom", po::value< int >(), "export textured geometry as .obj [0]/1")
         ("exroombb", po::value< int >(), "export room bounding boxes as .obj [0]/1")
         ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
@@ -85,7 +88,6 @@ int main(int ac, char *av[]) {
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ("verbose", po::value< int >(), "print out verbose messages")
         ("wall", po::value<std::string>(), "use only this wall")
-        ("walljson", po::value<std::string>(), "input wall json [.json]")
         ;
 
     po::variables_map vm;
@@ -95,7 +97,7 @@ int main(int ac, char *av[]) {
               vm);
     po::notify(vm);
 
-    if (vm.count("help")) //|| (!vm.count("walljson")) || (!vm.count("e57metadata")))
+    if (vm.count("help") || (!vm.count("walljson")) || (!vm.count("e57metadata")))
     {
       std::cout << desc << "\n";
       return 0;
@@ -274,64 +276,70 @@ int main(int ac, char *av[]) {
       }
     }
 
+    std::cout << "parsing walls..." << std::endl;
     // ---------------------------------------------- WALL JSON
     {
-        std::string wallfn = vm["walljson"].as<std::string>();
-        FILE* fp = fopen(wallfn.c_str(), "rb"); // non-Windows use "r"
-        char readBuffer[256];
-        rapidjson::FileReadStream bis(fp, readBuffer, sizeof(readBuffer));
-        rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);  // wraps bis into eis
-        rapidjson::Document walljson;         // Document is GenericDocument<UTF8<> > 
-        if (walljson.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis).HasParseError())
-        {
-            std::cout << "[ERROR] parsing input JSON file " << wallfn << std::endl;
-        }
-        fclose(fp);
-
-
-        const rapidjson::Value& wallarr = walljson["Walls"];
-        if (wallarr.IsArray())
-        {
-            for (rapidjson::SizeType i = 0, ie = wallarr.Size(); i < ie; ++i)
+            std::string wallfn = vm["walljson"].as<std::string>();
+            FILE* fp = fopen(wallfn.c_str(), "rb"); // non-Windows use "r"
+            char readBuffer[256];
+            rapidjson::FileReadStream bis(fp, readBuffer, sizeof(readBuffer));
+            rapidjson::AutoUTFInputStream<unsigned, rapidjson::FileReadStream> eis(bis);  // wraps bis into eis
+            rapidjson::Document walljson;         // Document is GenericDocument<UTF8<> > 
+            if (walljson.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis).HasParseError())
             {
-                const rapidjson::Value& wall = wallarr[i];
-                std::string label = wall["label"].GetString();
-                if (label.compare("WALL") != 0) {
-                    std::cout << "[error] parsing wall " << wall["attributes"]["id"].GetString() << std::endl;
-                }
-                else {
-                    const rapidjson::Value& att = wall["attributes"];
+                std::cout << "[ERROR] parsing input JSON file " << wallfn << std::endl;
+            }
+            fclose(fp);
 
-                    Vec3d O(att["origin"][0].GetDouble(), 
-                            att["origin"][1].GetDouble(), 
-                            att["origin"][2].GetDouble());
-                    Vec3d X(att["x"][0].GetDouble(),
-                            att["x"][1].GetDouble(),
-                            att["x"][2].GetDouble());
-                    Vec3d Y(att["y"][0].GetDouble(),
-                            att["y"][1].GetDouble(),
-                            att["y"][2].GetDouble());
-                    double width = att["width"].GetDouble();
-                    double height = att["height"].GetDouble();
 
-                    Vec3d v0 = O*walljson_scalefactor;
-                    Vec3d v1 = (O + Y*height)*walljson_scalefactor;
-                    Vec3d v2 = (O + Y*height + X*width)*walljson_scalefactor;
-                    Vec3d v3 = (O + X*width)*walljson_scalefactor;
+            const rapidjson::Value& wallarr = walljson["Walls"];
+            if (wallarr.IsArray())
+            {
+                for (rapidjson::SizeType i = 0, ie = wallarr.Size(); i < ie; ++i)
+                {
+                    const rapidjson::Value& wall = wallarr[i];
+                    if (!wall["attributes"].HasMember("roomid")) {
+                        std::cout << "[ERROR] ignoring wall " << wall["attributes"]["id"].GetString() << " because it does not contain a room id!" << std::endl;
+                    }
+                    else {
+                        std::string label = wall["label"].GetString();
+                        if (label.compare("WALL") != 0) {
+                            std::cout << "[error] parsing wall " << wall["attributes"]["id"].GetString() << std::endl;
+                        }
+                        else {
+                            const rapidjson::Value& att = wall["attributes"];
 
-                    Quad3Dd wallgeometry(v0,v1,v2,v3);
-                    wallgeometry.id = wall["attributes"]["id"].GetString();
-                    wallgeometry.roomid = wall["attributes"]["roomid"].GetString();
-                    walls.push_back(wallgeometry);
+                            Vec3d O(att["origin"][0].GetDouble(),
+                                att["origin"][1].GetDouble(),
+                                att["origin"][2].GetDouble());
+                            Vec3d X(att["x"][0].GetDouble(),
+                                att["x"][1].GetDouble(),
+                                att["x"][2].GetDouble());
+                            Vec3d Y(att["y"][0].GetDouble(),
+                                att["y"][1].GetDouble(),
+                                att["y"][2].GetDouble());
+                            double width = att["width"].GetDouble();
+                            double height = att["height"].GetDouble();
+
+                            Vec3d v0 = O*walljson_scalefactor;
+                            Vec3d v1 = (O + Y*height)*walljson_scalefactor;
+                            Vec3d v2 = (O + Y*height + X*width)*walljson_scalefactor;
+                            Vec3d v3 = (O + X*width)*walljson_scalefactor;
+
+                            Quad3Dd wallgeometry(v0, v1, v2, v3);
+                            wallgeometry.id = wall["attributes"]["id"].GetString();
+                            wallgeometry.roomid = wall["attributes"]["roomid"].GetString();
+                            walls.push_back(wallgeometry);
+                        }
+                    }
                 }
             }
-        }
-        else {
-            std::cout << "[ERROR] parsing input JSON file " << wallfn << std::endl;
-        }
-
+            else {
+                std::cout << "[ERROR] parsing input JSON file " << wallfn << std::endl;
+            }
     }
-
+    
+    std::cout << "building room index..." << std::endl;
     // -------------------------------------------------- BUILD ROOM INDEX
 
     // assign scan to room if inside OBB of room walls
@@ -496,8 +504,9 @@ int main(int ac, char *av[]) {
     }
 
     std::cout << "parsed " << scans.size() << " scans and " << walls.size() << " walls." << std::endl;
+    std::cout << "exporting orthos..." << std::endl;
+    
     // -------------------------------------------------- EXPORT ORTHO PHOTOS
-
     {
         // export walls
         myIFS quadgeometry; // ifs with orthophoto quads
@@ -606,12 +615,13 @@ int main(int ac, char *av[]) {
             objname << output << "_geometry";
             IFS::exportOBJ(quadgeometry, objname.str(), "# OrthoGen textured quads\n");
         }
+
     }
+    std::cout << "orthogen finished." << std::endl;
 
   } catch (std::exception &e) {
     std::cerr << "error: " << e.what() << "\n";
     return -1;
   }
 
-  std::cout << "--help for options." << std::endl;
 }
