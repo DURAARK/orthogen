@@ -150,8 +150,8 @@ int main(int ac, char *av[]) {
         }
         fclose(fp);
 
-        const rapidjson::Value& e57m = e57["e57m"];
-        const rapidjson::Value& arr = e57["e57m"]["e57scan"];
+        const rapidjson::Value& e57m = e57["e57_metadata"];
+        const rapidjson::Value& arr = e57["e57_metadata"]["scans"];
 
         if (!e57m.IsObject() || !arr.IsArray()) {
             std::cout << "[ERROR] parsing input JSON file "
@@ -207,7 +207,7 @@ int main(int ac, char *av[]) {
                               cmd << "--imsrc " << panopath << new_scan.basename << "_Faro.jpg ";
                               cmd << "--imdst " << panopath << new_scan.basename << "_Manual.jpg ";
                               cmd << "--outname " << panopath << new_scan.basename << "_aligned.jpg ";
-                              cmd << "--selrange " << item["sphericalbounds"]["elevation_minimum"].GetDouble() << " " << item["sphericalbounds"]["elevation_maximum"].GetDouble() << " ";
+                              cmd << "--selrange " << item["spherical_bounds"]["elevation_minimum"].GetDouble() << " " << item["spherical_bounds"]["elevation_maximum"].GetDouble() << " ";
                               if (verbose) std::cout << cmd.str();
                               std::system(cmd.str().c_str());
                               if (!loadJPEG(ss.str().c_str(), img))
@@ -249,8 +249,8 @@ int main(int ac, char *av[]) {
                 // bounds
                 {
                     if (useFaro) {
-                        new_scan.elevationRange[0] = item["sphericalbounds"]["elevation_minimum"].GetDouble();
-                        new_scan.elevationRange[1] = item["sphericalbounds"]["elevation_maximum"].GetDouble();
+                        new_scan.elevationRange[0] = item["spherical_bounds"]["elevation_minimum"].GetDouble();
+                        new_scan.elevationRange[1] = item["spherical_bounds"]["elevation_maximum"].GetDouble();
                         //new_scan.azimuthRange[0] = item["sphericalbounds"]["azimuth_minimum"].GetDouble();
                         //new_scan.azimuthRange[1] = item["sphericalbounds"]["azimuth_maximum"].GetDouble();
                     }
