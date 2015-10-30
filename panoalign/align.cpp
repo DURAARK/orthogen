@@ -60,7 +60,7 @@ int main(int ac, char *av[]) {
             vm);
   po::notify(vm);
 
-  if (vm.count("help")) {
+  if (vm.count("help") || !vm.count("imsrc") || !vm.count("imdst")) {
     std::cout << desc << "\n";
     return 0;
   }
@@ -249,7 +249,7 @@ int main(int ac, char *av[]) {
   //{
 
   //}
-  {
+  /*{
       std::clock_t startcputime = std::clock();
       std::cout << "find meanshift SAD modes.." << std::endl;
       MEANSHIFT::Meanshift<Vec1d, 1> ms_sad;
@@ -282,7 +282,7 @@ int main(int ac, char *av[]) {
       double cpu_duration = (std::clock() - startcputime) / (double)CLOCKS_PER_SEC;
       std::cout << "building SAD map took " << cpu_duration << "s." << std::endl;
   }
-
+*/
   std::cout << " find minimum SAD: " << std::endl;
   // put into map (sort)
   std::map<double, int> sapcost;
