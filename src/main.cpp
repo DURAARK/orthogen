@@ -39,6 +39,8 @@ typedef struct json_token *JSONTokens;
 
 using namespace OrthoGen;
 
+const std::string ORTHOGEN_VERSION = "0.8.1";
+
 template <typename V>
 void prvec(const V& v, const std::string msg="")
 {
@@ -54,13 +56,13 @@ int main(int ac, char *av[]) {
 
   double resolution = 0.001;                // default: 1 mm/pixel
   double walljson_scalefactor = 0.001;      // wall json is in mm
-  bool exportOBJ = false, useFaroPano = false, exportRoomBB = false;
+  bool exportOBJ = false, useFaroPano = false, exportRoomBB = false, orderCCW = true;
   bool verbose = false;
   int bb_normal_fit_precision = 8;
 
   Vec3d scan_translation_offset(0, 0, 0);
   //bool exportSphere = false;
-  std::cout << "OrthoGen orthographic image generator for DuraArk" << std::endl;
+  std::cout << "OrthoGen orthographic image generator for DURAARK " << ORTHOGEN_VERSION << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
   std::cout << "--help for options." << std::endl;
 
@@ -88,6 +90,7 @@ int main(int ac, char *av[]) {
         ("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ("verbose", po::value< int >(), "print out verbose messages")
         ("wall", po::value<std::string>(), "use only this wall")
+        ("ccw", po::value< int >(), "orientation of wall JSON quads [0]/1")
         ;
 
     po::variables_map vm;
@@ -102,6 +105,12 @@ int main(int ac, char *av[]) {
       std::cout << desc << "\n";
       return 0;
     }
+
+    if (vm.count("ccw")){ 
+        orderCCW = vm["ccw"].as<int>(); 
+        std::cout << "json walls are ordered " << (orderCCW ? "CCW" : "CW") << std::endl;
+    }
+    
 
     if (vm.count("panopath"))
     {
@@ -326,7 +335,13 @@ int main(int ac, char *av[]) {
                             Vec3d v2 = (O + Y*height + X*width)*walljson_scalefactor;
                             Vec3d v3 = (O + X*width)*walljson_scalefactor;
 
-                            Quad3Dd wallgeometry(v0, v1, v2, v3);
+                            Quad3Dd wallgeometry;
+                            if (orderCCW) {
+                                wallgeometry = Quad3Dd(v0, v1, v2, v3);
+                            }
+                            else {
+                                wallgeometry = Quad3Dd(v3, v2, v1, v0);
+                            }                            
                             wallgeometry.id = wall["attributes"]["id"].GetString();
                             wallgeometry.roomid = wall["attributes"]["roomid"].GetString();
                             walls.push_back(wallgeometry);
