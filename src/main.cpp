@@ -61,7 +61,9 @@ int main(int ac, char *av[]) {
   int bb_normal_fit_precision = 8;
 
   Vec3d scan_translation_offset(0, 0, 0);
-  //bool exportSphere = false;
+  bool exportSphere = false;
+  double sphereRadius = 1.0;
+
   std::cout << "OrthoGen orthographic image generator for DURAARK " << ORTHOGEN_VERSION << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
   std::cout << "--help for options." << std::endl;
@@ -81,6 +83,7 @@ int main(int ac, char *av[]) {
         ("align", po::value<std::string>(), "align executable")
         ("bbfitnormalprecision", po::value<int>(), "normal encoding precision for oriented bounding box fit for rooms [8]")
         ("exgeom", po::value< int >(), "export textured geometry as .obj [0]/1")
+        ("exsphere", po::value< int >(), "export textured panoramic sphere as .obj [0]/1")
         ("exroombb", po::value< int >(), "export room bounding boxes as .obj [0]/1")
         ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
         ("panopath", po::value<std::string>(), "path to pano images")
@@ -91,6 +94,7 @@ int main(int ac, char *av[]) {
         ("verbose", po::value< int >(), "print out verbose messages")
         ("wall", po::value<std::string>(), "use only this wall")
         ("ccw", po::value< int >(), "orientation of wall JSON quads [0]/1")
+        ("sphereradius", po::value< double >(), "exported panoramic sphere radius [1.0]")
         ;
 
     po::variables_map vm;
@@ -107,7 +111,7 @@ int main(int ac, char *av[]) {
     }
 
     if (vm.count("ccw")){ 
-        orderCCW = vm["ccw"].as<int>(); 
+        orderCCW = vm["ccw"].as<int>() != 0; 
         std::cout << "json walls are ordered " << (orderCCW ? "CCW" : "CW") << std::endl;
     }
     
@@ -127,6 +131,7 @@ int main(int ac, char *av[]) {
     if (vm.count("output")) { output = vm["output"].as<std::string>(); }
     if (vm.count("resolution")) { resolution = vm["output"].as<double>() / 1000.0; }
     if (vm.count("bbfitnormalprecision")) { bb_normal_fit_precision = vm["bbfitnormalprecision"].as<int>(); }
+    if (vm.count("sphereradius")) { sphereRadius = vm["sphereRadius"].as<double>(); }
 
     if (vm.count("scanoffset"))
     {
@@ -135,10 +140,16 @@ int main(int ac, char *av[]) {
         scan_translation_offset[1] = so[1];
         scan_translation_offset[2] = so[2];
     }
-    exportOBJ = (vm.count("exgeom") > 0);
-    exportRoomBB= (vm.count("exroombb") > 0);
-    verbose = (vm.count("verbose") > 0);
-    useFaroPano = (vm.count("usefaroimage") > 0);
+
+    auto parseBool = [&vm](const std::string &param) -> bool {
+        return (vm.count(param) > 0) ? vm[param].as<int>() != 0 : false;
+    };
+
+    exportOBJ = parseBool("exgeom");
+    exportRoomBB = parseBool("exroombb");
+    exportSphere = parseBool("exsphere");
+    verbose = parseBool("verbose");
+    useFaroPano = parseBool("usefaroimage");
 
     // parse jsons
     // ================================================= E57 Metadata
@@ -188,7 +199,9 @@ int main(int ac, char *av[]) {
                           ss << panopath << new_scan.basename << "_Faro.jpg";
                           Image img;
                           if (loadJPEG(ss.str().c_str(), img)) {
-                              new_scan.setPanoramicImage(img);
+                              std::ostringstream pf;
+                              pf << new_scan.basename << "_Faro.jpg";
+                              new_scan.setPanoramicImage(pf.str(), img);
                           }
                           else {
                               std::cout << "[ERROR] loading Faro panoramic image." << std::endl;
@@ -204,7 +217,9 @@ int main(int ac, char *av[]) {
                           ss << panopath << new_scan.basename << "_aligned.jpg";
                           Image img;
                           if (loadJPEG(ss.str().c_str(), img)) {
-                              new_scan.setPanoramicImage(img);
+                              std::ostringstream pf;
+                              pf << new_scan.basename << "_aligned.jpg";
+                              new_scan.setPanoramicImage(pf.str(), img);
                           }
                           else {
                               if (verbose) {
@@ -224,6 +239,11 @@ int main(int ac, char *av[]) {
                                   std::cout << "could not align image, using faro image." << std::endl;
                                   useFaro = true;
                                   loadFaro();
+                              }
+                              else {
+                                  std::ostringstream pf;
+                                  pf << new_scan.basename << "_aligned.jpg";
+                                  new_scan.setPanoramicImage(pf.str(), img);
                               }
                           }
                       }
@@ -631,6 +651,17 @@ int main(int ac, char *av[]) {
             IFS::exportOBJ(quadgeometry, objname.str(), "# OrthoGen textured quads\n");
         }
 
+    }
+
+    if (exportSphere)
+    {
+        for (auto &scan : scans) {
+            std::cout << "- exporting panorama sphere OBJ for " << scan.basename << std::endl;
+            myIFS sphere = scan.exportTexturedSphere(sphereRadius, 100);
+            sphere.materials.push_back(IFS::Material("sphere", scan.panofile));
+            sphere.facematerial.push_back(sphere.materials.size() - 1);
+            IFS::exportOBJ(sphere, scan.basename, "# OrthoGen panoramic sphere\n");
+        }
     }
     std::cout << "orthogen finished." << std::endl;
 

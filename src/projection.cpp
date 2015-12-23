@@ -12,9 +12,10 @@ SphericalPanoramaImageProjection::SphericalPanoramaImageProjection()
 {
 }
 
-void SphericalPanoramaImageProjection::setPanoramicImage(const Image &pi) 
+void SphericalPanoramaImageProjection::setPanoramicImage(const std::string &file, const Image &pi) 
 { 
     pano = pi; 
+    panofile = file;
 }
 
 const Image & SphericalPanoramaImageProjection::img() const

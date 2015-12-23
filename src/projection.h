@@ -34,12 +34,13 @@ namespace OrthoGen
 
         Pose pose;
         Image pano;
+        std::string panofile;
 
         SphericalPanoramaImageProjection();
 
         bool isValid() const;
 
-        void setPanoramicImage(const Image &pi);
+        void setPanoramicImage(const std::string &file, const Image &pi);
         const Image & img() const;
 
         void setPosition(const Vec3d &pos);
