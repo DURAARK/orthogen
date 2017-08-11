@@ -33,7 +33,7 @@ void SphericalPanoramaImageProjection::setPosition(const Vec3d &pos)
     pose.O = pos;
 }
 
-bool SphericalPanoramaImageProjection::applyRotation(Quaterniond &quat)
+bool SphericalPanoramaImageProjection::applyRotation(const Quaterniond &quat)
 {
     //std::cout << "CCS before rotation: " << std::endl << pose;
     pose.applyRotation(quat);

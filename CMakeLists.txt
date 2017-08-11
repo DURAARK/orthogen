@@ -11,7 +11,7 @@ IF(MSVC)
    ADD_DEFINITIONS(-D_UNICODE)
    ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
 ELSE(MSVC)
-   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-backtrace-limit=0 -fno-strict-aliasing -std=c++11 -fopenmp")
+   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-backtrace-limit=0 -fno-strict-aliasing -std=c++11")
    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -msse2 -mfpmath=sse -O3")
    ADD_DEFINITIONS(-Wall)
    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "$CMAKE_CXX_FLAGS_RELWITHDEBINFO$ -O3 -g")
@@ -34,7 +34,7 @@ INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 
 ###### Boost
 
-FIND_PACKAGE(Boost 1.40 COMPONENTS program_options REQUIRED )
+FIND_PACKAGE(Boost 1.40 COMPONENTS program_options filesystem system REQUIRED )
 set(Boost_USE_STATIC_LIBS   ON)
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIRS} )
 
@@ -50,7 +50,7 @@ IF (NOT RAPIDJSON_INCLUDE_DIR)
   FIND_PATH(RAPIDJSON_INCLUDE_DIR "rapidjson/document.h" HINTS "lib/rapidjson/include")
 ENDIF()
 IF(NOT RAPIDJSON_INCLUDE_DIR)
-    MESSAGE( FATAL_ERROR "Please set RAPIDJOSN_INCLUDE_DIR")
+    MESSAGE( FATAL_ERROR "Please set RAPIDJSON_INCLUDE_DIR")
 ENDIF()
 include_directories(${RAPIDJSON_INCLUDE_DIR})
 
@@ -68,6 +68,7 @@ SET(SRC_FILES
     src/quad.h
     src/meanshift.h
     src/main.cpp
+    src/config.h
     )
 
 ADD_EXECUTABLE(orthogen ${SRC_FILES})

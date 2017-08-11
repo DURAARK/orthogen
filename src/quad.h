@@ -2,13 +2,19 @@
 #define _QUAD_H_
 
 #include "projection.h"
-
+#include <unordered_set>
 // Quad3D : an oriented quad in 3D space.
 // The class receives the 4 coordinates in CCW order and
 // arranges the vertices such that the first coordinate is upper left.
 // ulrich.krispel@fraunhofer.at
 
 namespace OrthoGen {
+
+    //   V[0]----------V[3]
+    //    |             |
+    //    |             |
+    //    |             |
+    //   V[1]----------V[2]
 
 template< class T >
 struct Quad3D
@@ -18,7 +24,7 @@ struct Quad3D
     std::string id;
     std::string roomid;
 
-    std::vector<size_t> tri_id;    // mesh triangles belonging to this quad
+    std::unordered_set<size_t> tri_id;    // mesh triangles belonging to this quad
 
     // vertices are given in CCW order
     Quad3D()

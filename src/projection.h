@@ -44,7 +44,7 @@ namespace OrthoGen
         const Image & img() const;
 
         void setPosition(const Vec3d &pos);
-        bool applyRotation(Quaterniond &quat);
+        bool applyRotation(const Quaterniond &quat);
 
         void printPose();
 

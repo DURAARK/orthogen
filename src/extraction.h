@@ -3,6 +3,8 @@
 
 #include "quad.h"
 
+#define M_PI 3.14159265358979323846
+
 namespace OrthoGen
 {
     typedef Quad3D<Vec3d> Quad3Dd;
@@ -13,7 +15,8 @@ namespace OrthoGen
         const Vec3d m;            // mean (midpoint)
         const Vec3d n;            // normal
         const double area;
-        const size_t faceid;      // triangle id 
+        const size_t tri_id;      // triangle id
+        const size_t ifsface_id;  // ifs face id
         int cluster;              // quad id
 
 
@@ -24,11 +27,18 @@ namespace OrthoGen
 #define _C2_ (_TA[2] * _TB[0] - _TA[0] * _TB[2])
 #define _C3_ (_TA[0] * _TB[1] - _TA[1] * _TB[0])
 
-        Triangle(const Vec3d &P, const Vec3d &Q, const Vec3d &R, size_t face)
+        Triangle(const Vec3d &P, const Vec3d &Q, const Vec3d &R, const size_t tri, const size_t ifsface)
             : p(P), q(Q), r(R), m((P + Q + R) / 3.0),
             n(_TA.cross(_TB).normalized()), area(0.5*sqrt(_C1_*_C1_ + _C2_*_C2_ + _C3_*_C3_)),
-            faceid(face), cluster(-1)
+            tri_id(tri), ifsface_id(ifsface), cluster(-1)
         {
+        }
+
+        Vec3d normal() const
+        {
+            Vec3d a = q - p; a.normalize();
+            Vec3d b = r - p; b.normalize();
+            return a.cross(b);
         }
     };
 
@@ -78,17 +88,62 @@ namespace OrthoGen
         return os;
     }
 
-    // quad patch extraction with clustering
-    void extract_quads(const myIFS &ifs, const double scalef,
+
+
+    // Möller-Trumbore algorithm
+    bool ray_triangle_intersection(
+        const Vec3d &orig, const Vec3d &dir,
+        const Vec3d &v0, const Vec3d &v1, const Vec3d &v2,
+        double &t, double &u, double &v)
+    {
+        const double kEpsilon = 0.00001;
+
+        const Vec3d v0v1 = v1 - v0;
+        const Vec3d v0v2 = v2 - v0;
+        const Vec3d pvec = dir.cross(v0v2);
+        const double det = v0v1.dot(pvec);
+
+        // ray and triangle are parallel if det is close to 0
+        if (std::abs(det) < kEpsilon) return false;
+
+        const double invDet = 1.0 / det;
+
+        const Vec3d tvec = orig - v0;
+        u = tvec.dot(pvec) * invDet;
+        if (u < -kEpsilon || u > (1+kEpsilon)) return false;
+
+        const Vec3d qvec = tvec.cross(v0v1);
+        v = dir.dot(qvec) * invDet;
+        if (v < -kEpsilon || u + v > (1+ kEpsilon)) return false;
+
+        t = v0v2.dot(qvec) * invDet;
+        return true;
+    }
+
+    double ray_quad_intersection(const Vec3d &orig, const Vec3d &dir,
+        const Quad3Dd &q) {
+        double u, v, t0, t1;
+
+        ray_triangle_intersection(orig, dir, q.V[0], q.V[1], q.V[2],t0,u,v);
+        if (t0 > 0) return t0;
+        ray_triangle_intersection(orig, dir, q.V[0], q.V[2], q.V[3],t1,u,v);
+        return t1;
+    }
+
+    // Given an indexed face set that may consist of triangles and/or quads,
+    // generate a pure triangular representation and extract rectangular
+    // patches using clustering.
+    void extract_quads(const myIFS &ifs,
         std::vector<Triangle> &triangles,
         std::vector<Quad3Dd> &quads,
-        double WINDOW_SIZE_DIST = 0.1, double WINDOW_SIZE_NORML = 0.3)
+        const double WINDOW_SIZE_DIST = 0.1, const double WINDOW_SIZE_NORML = 0.3, const double WINDOW_SIZE_ANGLE = 0.05)
     {
         std::cout.precision(2);
 
         // extract triangles from faces
         {
             int numtri = 0, numquad = 0, numIgnored = 0;
+            int ifsfaceid = 0;
             for (auto &face : ifs.faces)
             {
                 switch (face.size())
@@ -96,26 +151,25 @@ namespace OrthoGen
                 case 3: // Triangle
                     triangles.push_back(Triangle(ifs.vertices[face[0]],
                         ifs.vertices[face[1]],
-                        ifs.vertices[face[2]], triangles.size()));
+                        ifs.vertices[face[2]], triangles.size(), ifsfaceid));
                     ++numtri;
                     break;
                 case 4: // Quad
                     triangles.push_back(Triangle(ifs.vertices[face[0]],
                         ifs.vertices[face[1]],
-                        ifs.vertices[face[2]], triangles.size()));
+                        ifs.vertices[face[2]], triangles.size(), ifsfaceid));
 
                     triangles.push_back(Triangle(ifs.vertices[face[2]],
                         ifs.vertices[face[3]],
-                        ifs.vertices[face[0]], triangles.size()));
+                        ifs.vertices[face[0]], triangles.size(), ifsfaceid));
                     ++numquad;
                     break;
-
                 default:
                     std::cout << "[Warning] face with " << face.size()
                         << " vertices ignored." << std::endl;
                     ++numIgnored;
-
                 }
+                ++ifsfaceid;
             }
             std::cout << "Input Geometry consists of " << numtri << " triangles and " << numquad << " quads." << std::endl;
             if (numIgnored > 0) {
@@ -155,7 +209,7 @@ namespace OrthoGen
             ms_angles.points.push_back(row);
         }
 
-        if (ms_angles.calculate(0.05))
+        if (ms_angles.calculate(WINDOW_SIZE_ANGLE))
         {
             std::cout << "found " << ms_angles.cluster.size() << " main directions:" << std::endl;
         }
@@ -169,7 +223,7 @@ namespace OrthoGen
         for (auto const &clusterangle : ms_angles.cluster)
         {
             // gather triangles per directional cluster
-            std::vector<Triangle> tricluster;
+            std::vector<Triangle *> tricluster;
             {
                 int i = 0;
                 for (auto ncluster = ms_normals.cluster.begin(),
@@ -183,13 +237,13 @@ namespace OrthoGen
                         // add all triangles from this ms_normals cluster
                         for (size_t id : ncluster->second)
                         {
-                            tricluster.push_back(triangles[id]);
+                            tricluster.push_back(&triangles[id]);
                         }
                     }
                 }
             }
 
-            Vec3d clusterdirection = tricluster[0].n;
+            const Vec3d clusterdirection = tricluster[0]->n;
             std::cout << "direction:" << clusterdirection;
 
             // cluster triangles by projected distance
@@ -200,20 +254,31 @@ namespace OrthoGen
             for (auto const &t : tricluster)
             {
                 Vec1d d;
-                d[0] = clusterdirection.dot(t.m);
+                d[0] = clusterdirection.dot(t->m);
                 ms_distance.points.push_back(d);
             }
-            ms_distance.calculate(scalef * WINDOW_SIZE_DIST);  // default window size = 10cm
+            ms_distance.calculate(WINDOW_SIZE_DIST);  // default window size = 10cm
 
-            std::cout << " clusters: " << ms_distance.cluster.size() << std::endl;
+            std::cout << " distance clusters: " << ms_distance.cluster.size() << std::endl;
 
             for (auto const &dcluster : ms_distance.cluster)
             {
                 Quad3Dd Q;
+#if 0
                 // get centroid of cluster
                 Vec3d center = Vec3d::Zero();
-                for (const size_t i : dcluster.second) { center += tricluster[i].m; }
+                for (const size_t i : dcluster.second) { center += tricluster[i]->m; }
                 center /= (double)dcluster.second.size();
+#endif
+#if 1
+                // get median of cluster
+                std::vector<size_t> c = dcluster.second;
+                std::sort(c.begin(), c.end(), [&tricluster,&clusterdirection](const size_t a, const size_t b) {
+                    return clusterdirection.dot(tricluster[a]->m) < clusterdirection.dot(tricluster[b]->m);
+                });
+                const Vec3d center = tricluster[c[c.size()/2]]->m;
+#endif
+
 
                 // create a local coordinate system, Z = clusterdirection
                 Vec3d X, Y, Z, T;
@@ -249,7 +314,7 @@ namespace OrthoGen
                     AABB3D aabb;
                     for (const size_t i : dcluster.second)
                     {
-                        const Triangle &T = tricluster[i];
+                        const Triangle &T = *tricluster[i];
                         // transform into pose coordinate system
                         aabb.insert(pose.world2pose(T.p));
                         aabb.insert(pose.world2pose(T.q));
@@ -270,11 +335,15 @@ namespace OrthoGen
                 // mark triangles of this cluster
                 for (auto ti : dcluster.second)
                 {
-                    Q.tri_id.push_back(tricluster[ti].faceid);
+                    Q.tri_id.insert(tricluster[ti]->tri_id);
+                    if (tricluster[ti]->cluster == -1) {
+                        tricluster[ti]->cluster = clusterid;
+                    } else {
+                        std::cout << "#WARNING# triangle in more than 1 cluster" << std::endl;
+                    }
                 }
 
                 quads.push_back(Q);
-                //std::cout << quads.back() << std::endl;
 
                 ++clusterid;
             }

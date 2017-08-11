@@ -12,7 +12,7 @@
 namespace MEANSHIFT
 {
 
-#define MEANSHIFT_MAX_ITERATIONS 10000
+#define MEANSHIFT_MAX_ITERATIONS 20000
 
 template < class VECD, int D > 
 class Meanshift

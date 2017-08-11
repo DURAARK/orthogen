@@ -13,6 +13,7 @@
 
 namespace IFS
 {
+    // lexicographical comparator for eigen vectors
     template< typename VTYPE >
     struct LexicographicalComparator
     {
@@ -43,12 +44,14 @@ namespace IFS
   struct IFS
   {
      typedef IFSVERTEX IFSVTYPE;
+     typedef IFSTEXCOORD IFSTCTYPE;
      typedef size_t IFSINDEX;
 
      typedef std::vector< IFSVERTEX, Eigen::aligned_allocator< IFSVERTEX > > IFSVCONTAINER;        // vertex position
      typedef std::vector< IFSTEXCOORD, Eigen::aligned_allocator< IFSTEXCOORD > > IFSTCCONTAINER;   // texture coordinate
 
      typedef std::map< IFSVERTEX, IFSINDEX, LexicographicalComparator<IFSVERTEX> > INDEXMAP;
+     typedef std::map< IFSTEXCOORD, IFSINDEX, LexicographicalComparator<IFSTEXCOORD> > INDEXTCMAP;
 
      typedef std::vector< IFSINDEX >   IFSINDICES;
      typedef std::vector< IFSINDICES > IFSICONTAINER;
@@ -56,17 +59,21 @@ namespace IFS
      typedef std::vector< Material >   IFSMATCONTAINER;
      
      IFSVCONTAINER  vertices;
+     IFSVCONTAINER  normals;
      IFSTCCONTAINER texcoordinates;
      IFSMATCONTAINER materials;
      IFSICONTAINER  faces;                  // vertex indices per face
      IFSICONTAINER  facetexc;               // texture coordinate indices per face
+     IFSICONTAINER  facenorm;               // face normal indices per face
      IFSINDICES  facematerial;              // material id per face
 
      INDEXMAP       indexmap;               // indexing of vertex coordinates
-     
-     bool useTextureCoordinates;
+     INDEXTCMAP     indextcmap;             // indexing of texture coordinates
 
-     IFS() : useTextureCoordinates(false) {}
+     bool useTextureCoordinates;
+     bool useNormals;
+
+     IFS() : useTextureCoordinates(false), useNormals(false) {}
 
      inline bool isValid() const { return !vertices.empty(); }
 
@@ -76,24 +83,28 @@ namespace IFS
          return vertices[index];
      }
 
-
      IFSINDEX vertex2index(const IFSVERTEX &v)
      {
         typename INDEXMAP::const_iterator itv = indexmap.find(v);
         if ( itv == indexmap.end())
         {
            vertices.push_back ( v );
-           //if (useTextureCoordinates) 
-           //{
-           //    texcoordinates.push_back(texCoord);
-           //    // OBJ origin is bottom left
-           //    texcoordinates.back()[1] = 1.0 - texcoordinates.back()[1];
-           //    assert(vertices.size() == texcoordinates.size());
-           //}
            indexmap[ v ] = vertices.size() - 1;
            return vertices.size() - 1;
         }
         return itv->second;
+     }
+
+     IFSINDEX tc2index(const IFSTEXCOORD &tc)
+     {
+         typename INDEXTCMAP::const_iterator ittc = indextcmap.find(tc);
+         if (ittc == indextcmap.end())
+         {
+             texcoordinates.push_back(tc);
+             indextcmap[tc] = texcoordinates.size() - 1;
+             return texcoordinates.size() - 1;
+         }
+         return ittc->second;
      }
 
      // append geometry
@@ -153,9 +164,11 @@ namespace IFS
           {
               if (lastmatid != ifs.facematerial[fi])
               {
-                  const Material &mat = ifs.materials[ifs.facematerial[fi]];
-                  os << "usemtl " << mat.matname << std::endl;
-                  lastmatid = ifs.facematerial[fi];
+                  if (ifs.facematerial[fi] < ifs.materials.size()) {
+                      const Material &mat = ifs.materials[ifs.facematerial[fi]];
+                      os << "usemtl " << mat.matname << std::endl;
+                      lastmatid = ifs.facematerial[fi];
+                  }
               }
 
           }
@@ -262,22 +275,72 @@ namespace IFS
                    }
                    ifs.vertices.push_back(vertex);
                }
+               // TEXTURE COORDINATE
+               if ((linetoken[0].compare("vt") == 0) || (linetoken[0].compare("VT") == 0))
+               {
+                   // add tc
+                   typename IFS_T::IFSTCTYPE tc;
+                   for (int i = 0; i < 2; ++i)
+                   {
+                       std::istringstream parser(linetoken[i + 1]);
+                       parser >> tc[i];
+                   }
+                   ifs.texcoordinates.push_back(tc);
+               }
+               // NORMAL
+               if ((linetoken[0].compare("vn") == 0) || (linetoken[0].compare("VN") == 0))
+               {
+                   // add vertex
+                   typename IFS_T::IFSVTYPE normal;
+                   for (int i = 0; i < 3; ++i)
+                   {
+                       std::istringstream parser(linetoken[i + 1]);
+                       parser >> normal[i];
+                   }
+                   ifs.normals.push_back(normal);
+               }
                // FACE
                if ((linetoken[0].compare("f") == 0) || (linetoken[0].compare("F") == 0))
                {
                    typename IFS_T::IFSINDICES face;
+                   typename IFS_T::IFSINDICES facetc;
+                   typename IFS_T::IFSINDICES facenormal;
                    for (unsigned i = 1; i < linetoken.size(); ++i)
                    {
                        // split by '/'
                        // vertex/texcoord/normal
                        std::vector< std::string > facevertex;
                        Tokenize(linetoken[i], facevertex, "/");
-                       std::istringstream parser(facevertex[0]);    // index 0:vertex
-                       unsigned vindex;
-                       parser >> vindex;
-                       face.push_back(vindex-1);    // first element starts with 1!
+                       {
+                           std::istringstream parser(facevertex[0]);    // index 0:vertex
+                           unsigned vindex;
+                           parser >> vindex;
+                           face.push_back(vindex - 1);    // first element starts with 1!
+                       }
+                       {
+                           if (!facevertex[1].empty()) {
+                               std::istringstream parser(facevertex[1]);    // index 1:texcoord
+                               unsigned tcindex;
+                               parser >> tcindex;
+                               facetc.push_back(tcindex - 1);    // first element starts with 1!
+                           }
+                       }
+                       {
+                           if (!facevertex[2].empty()) {
+                               std::istringstream parser(facevertex[2]);    // index 1:normal
+                               unsigned nindex;
+                               parser >> nindex;
+                               facenormal.push_back(nindex - 1);    // first element starts with 1!
+                           }
+                       }
                    }
                    ifs.faces.push_back(face);
+                   if (!facetc.empty()) {
+                       ifs.facetexc.push_back(facetc);
+                   }
+                   if (!facenormal.empty()) {
+                       ifs.facenorm.push_back(facenormal);
+                   }
                }
                // everything else is ignored.
            }
@@ -291,7 +354,9 @@ namespace IFS
    static IFS_T loadOBJ(const std::string &filename)
    {
        std::ifstream is(filename);
-
+       if (!is.is_open()) {
+           std::cout << "[ERROR]: could not open " << filename << std::endl;
+       }
        return loadOBJ<IFS_T>(is);
    }
 
