@@ -18,11 +18,12 @@ scan is occluded by the input geometry (e.g. a wall), so that color
 gets only projected on patches that are visible from that scan.
 This version also adds a new input format, as the e57 metadata json format
 is not as easily accessible. A tool that extracts the pose information
-from an .e57 file is included in the "src/e57" subfolder.
+from an .e57 file is included in the "src/e57" subfolder. The panoramic
+images are supposed to be named after the corresponding scan "name" tag in the config (+.jpg).
 
-Furthermore, the project also creates an executable named "panoalign"
-that automatically aligns a manually taken image to the registered image
-from the faro scanner. The tool expects all panoramic images to be in 
+In Version 0.7.0 and 0.9.0, the software also may 
+align a manually taken image to the registered image from the faro scanner. 
+The tool expects all panoramic images to be in 
 an folder, where each image is named according to the scan id in the
 e57 metadata: for each scan id "scan_id", the system tries to find an image
 named "scan_id"_aligned.jpg that contains the aligned manual 
