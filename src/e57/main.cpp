@@ -9,7 +9,8 @@
 #include "rapidjson/encodedstream.h"    // AutoUTFInputStream
 #include "rapidjson/writer.h"
 
-// extract pose of scans + name from E57 file using E57Simple API and RapidJSON
+// E57 Pose Extractor
+// dependencies: libe57 (simple API) and rapidjson
 
 using namespace rapidjson;
 
