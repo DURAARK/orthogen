@@ -36,7 +36,7 @@ typedef struct json_token *JSONTokens;
 
 using namespace OrthoGen;
 
-const std::string ORTHOGEN_VERSION = "0.10.1";
+const std::string ORTHOGEN_VERSION = "0.10.3";
 
 template <typename V>
 void prvec(const V& v, const std::string msg="")
@@ -48,7 +48,7 @@ Config CONFIG;
 State  STATE;
 
 int main(int ac, char *av[]) {
-
+  std::cout << std::fixed;
   std::cout << "OrthoGen orthographic image generator " << ORTHOGEN_VERSION << std::endl;
   std::cout << "developed by Fraunhofer Austria Research GmbH" << std::endl;
   std::cout << "--help for options." << std::endl;
@@ -66,6 +66,18 @@ int main(int ac, char *av[]) {
     // TODO: integrate old method of e57metadata + wall json parsing
     config_parse_json(CONFIG, STATE);
 
+	// apply geometry offset
+	for (auto &v : STATE.ifs.vertices) {
+		v += CONFIG.geometry_offset;
+	}
+
+	const boost::filesystem::path jsonpath(CONFIG.jsonconfig);
+	const boost::filesystem::path outdir =
+		jsonpath.parent_path() / CONFIG.outdir;
+	if (!boost::filesystem::exists(outdir)) {
+		boost::filesystem::create_directory(outdir);
+	}
+
   // Orthogen will
   // (a) extract rectangular patches
   //     - from an OBJ file
@@ -77,13 +89,15 @@ int main(int ac, char *av[]) {
     //
     if (CONFIG.exportClusters)
     {
+		boost::filesystem::path outfile_cluster = outdir / (CONFIG.output + "_clusters.obj");
+
         std::cout << "* writing clustered triangles OBJ.." << std::endl;
         std::unordered_map< size_t, std::vector<size_t> > clusters;
         for (size_t i = 0, ie = STATE.triangles.size(); i < ie; ++i) {
             auto const &T = STATE.triangles[i];
             clusters[T.cluster].push_back(i);
         }
-        std::ofstream of(CONFIG.output + "_clusters.obj");
+        std::ofstream of(outfile_cluster.c_str());
         of << std::endl;
         size_t voffset = 0;
         for (auto const &cluster : clusters) {
@@ -107,7 +121,6 @@ int main(int ac, char *av[]) {
     if (CONFIG.exportOrtho)
     {
         // export walls
-        const boost::filesystem::path jsonpath(CONFIG.jsonconfig);
 
         myIFS quadgeometry; // ifs with orthophoto quads
 
@@ -116,12 +129,6 @@ int main(int ac, char *av[]) {
         quadgeometry.texcoordinates.push_back(Vec2d(0, 0));
         quadgeometry.texcoordinates.push_back(Vec2d(1, 0));
         quadgeometry.texcoordinates.push_back(Vec2d(1, 1));
-
-        const boost::filesystem::path outdir =
-            jsonpath.parent_path() / CONFIG.outdir;
-        if (!boost::filesystem::exists(outdir)) {
-            boost::filesystem::create_directory(outdir);
-        }
 
         int patch_id = 0;
         for (int patch_id = 0; patch_id < STATE.patches.size(); ++patch_id) {
@@ -137,15 +144,19 @@ int main(int ac, char *av[]) {
 
             Vec3d W = patch.W();
             Vec3d H = patch.H();
-            double width = W.norm();
-            double height = H.norm();
+            const double width = W.norm();
+            const double height = H.norm();
+			const int pwidth = (int)(width / CONFIG.resolution) + 1;
+			const int pheight = (int)(height / CONFIG.resolution) + 1;
             Vec3d xdir = W; xdir.normalize();
             Vec3d ydir = H; ydir.normalize();
 
             Image ortho;
             Image associatedScan;
 
-            ortho.initialize((int)(width / CONFIG.resolution) + 1, (int)(height / CONFIG.resolution) + 1, 24);
+			std::cout << "width: " << width << "m, height: " << height << "m. => pixel: " << pwidth << " x " << pheight << "." << std::endl;
+
+            ortho.initialize(pwidth, pheight, 24);
             if (CONFIG.verbose) {
                 prvec(patch.V[0], " V0:");
                 prvec(patch.V[1], " V1:");
@@ -243,8 +254,9 @@ int main(int ac, char *av[]) {
         }
         if (CONFIG.exportQuad)
         {
-            std::cout << "writing patches..." << std::endl;
-            IFS::exportOBJ(quadgeometry, CONFIG.output+"_patches", "# OrthoGen textured quads\n");
+			const boost::filesystem::path outfile_patches = outdir / (CONFIG.output + "_patches");
+			std::cout << "writing patches..." << std::endl;
+            IFS::exportOBJ(quadgeometry, outfile_patches.string(), "# OrthoGen textured quads\n");
         }
 
     }
@@ -292,18 +304,22 @@ int main(int ac, char *av[]) {
             );
         }
         std::cout << "writing textured geometry..." << std::endl;
-        IFS::exportOBJ(exportIFS, CONFIG.output + "_geometry", "# OrthoGen textured geometry\n");
+		const boost::filesystem::path outfile_geometry = outdir / (CONFIG.output + "_geometry");
+        IFS::exportOBJ(exportIFS, outfile_geometry.string(), "# OrthoGen textured geometry\n");
     }
 
     // write spheres
     if (CONFIG.exportSphere)
     {
+		const boost::filesystem::path panopath(CONFIG.panopath);
+
         for (auto &scan : STATE.scans) {
-            std::cout << "- exporting panorama sphere OBJ for " << scan.basename << std::endl;
+			const boost::filesystem::path outfile_sphere = outdir / (CONFIG.output + "_" + scan.basename);
+			std::cout << "- exporting panorama sphere OBJ for " << scan.basename << std::endl;
             myIFS sphere = scan.exportTexturedSphere(CONFIG.sphereRadius, 100);
-            sphere.materials.push_back(IFS::Material("sphere", scan.panofile));
+            sphere.materials.push_back(IFS::Material("sphere", (outdir.lexically_relative(panopath) / scan.panofile).string() ));
             sphere.facematerial.push_back(sphere.materials.size() - 1);
-            IFS::exportOBJ(sphere, scan.basename, "# OrthoGen panoramic sphere\n");
+            IFS::exportOBJ(sphere, outfile_sphere.string(), "# OrthoGen panoramic sphere\n");
         }
     }
 

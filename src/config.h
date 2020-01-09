@@ -18,7 +18,8 @@ namespace OrthoGen
         int bb_normal_fit_precision = 8;
 
         Vec3d scan_translation_offset = Vec3d(0, 0, 0);
-        bool exportSphere = false;
+		Vec3d geometry_offset = Vec3d(0, 0, 0);
+		bool exportSphere = false;
         double sphereRadius = 1.0;
 
         // clustering parameters
@@ -57,7 +58,7 @@ void config_parse_options(int ac, char *av[], Config &config)  {
         ("help", "show this help message")
         ("e57metadata", po::value<std::string>(), "e57 metadata json [.json] MANDATORY(A)")
         ("configjson", po::value<std::string>(), "json file with pose information MANDATORY(C)")
-        ("geometry", po::value<std::string>(), "input geometry [.obj]")
+        ("geometry", po::value<std::string>(), "input geometry [.obj] (relative to config)")
         ("align", po::value<std::string>(), "align executable")
         ("wnddist", po::value< double >(), "distance clustering window size [0.1]")
         ("wndnorm", po::value< double >(), "normal clustering window size [0.3]")
@@ -68,12 +69,13 @@ void config_parse_options(int ac, char *av[], Config &config)  {
         ("exquad", po::value< int >(), "export textured panoramic sphere as .obj [0]/1")
         ("exroombb", po::value< int >(), "export room bounding boxes as .obj [0]/1")
         ("excluster", po::value< int >(), "export triangle clusters as .obj [0]/1")
-        ("output", po::value< std::string >(), "output filename [.jpg] will be appended")
+		("output", po::value< std::string >(), "output filename [.jpg] will be appended")
         ("panopath", po::value<std::string>(), "path to pano images")
         ("resolution", po::value< double >(), "resolution [mm/pixel]")
         ("scan", po::value<std::string>(), "if specified, only this scan will be considered")
-        ("scanoffset", po::value<std::vector<double>>()->multitoken(), "translation offset")
-        //("usefaroimage", po::value< int >(), "use pano from faro scanner")
+        ("scanoffset", po::value<std::vector<double>>()->multitoken(), "scan translation offset")
+		("geometryoffset", po::value<std::vector<double>>()->multitoken(), "geometry translation offset")
+		//("usefaroimage", po::value< int >(), "use pano from faro scanner")
         ("verbose", po::value< int >(), "print out verbose messages")
         //("wall", po::value<std::string>(), "use only this wall")
         //("ccw", po::value< int >(), "orientation of wall JSON quads [0]/1")
@@ -127,7 +129,20 @@ void config_parse_options(int ac, char *av[], Config &config)  {
         config.scan_translation_offset[0] = so[0];
         config.scan_translation_offset[1] = so[1];
         config.scan_translation_offset[2] = so[2];
+		std::cout << "scan offset:" << config.scan_translation_offset[0] << ","
+			<< config.scan_translation_offset[1] << ","
+			<< config.scan_translation_offset[2] << std::endl;
     }
+	if (vm.count("geometryoffset"))
+	{
+		std::vector<double> so = vm["geometryoffset"].as<std::vector<double>>();
+		config.geometry_offset[0] = so[0];
+		config.geometry_offset[1] = so[1];
+		config.geometry_offset[2] = so[2];
+		std::cout << "geometry offset:" << config.geometry_offset[0] << ","
+			<< config.geometry_offset[1] << ","
+			<< config.geometry_offset[2] << std::endl;
+	}
     //if (vm.count("scale"))
     //{
     //    std::string s = vm["scale"].as<std::string>();
@@ -307,7 +322,9 @@ void config_read_walljson(Config &cfg, State &state) {
 void config_parse_json(Config &cfg, State &state) {
     FILE* fp = fopen(cfg.jsonconfig.c_str(), "rb"); // non-Windows use "r"
     if (!fp) {
-        throw std::exception("could not open config JSON.");
+		std::ostringstream ss;
+		ss << "could not open config JSON : " << cfg.jsonconfig;
+        throw std::exception(ss.str().c_str());
     }
     char readBuffer[256];
     rapidjson::FileReadStream bis(fp, readBuffer, sizeof(readBuffer));
@@ -360,6 +377,9 @@ void config_parse_json(Config &cfg, State &state) {
                     item["pos"]["y"].GetDouble(),
                     item["pos"]["z"].GetDouble()
                 ) + cfg.scan_translation_offset);
+				if (cfg.verbose) {
+					std::cout << "scan position: " << new_scan.pose.O.x() << "," << new_scan.pose.O.y() << "," << new_scan.pose.O.z() << std::endl;
+				}
             }
             // orientation
             {

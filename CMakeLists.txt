@@ -34,9 +34,13 @@ INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 
 ###### Boost
 
-FIND_PACKAGE(Boost 1.40 COMPONENTS program_options filesystem system REQUIRED )
-set(Boost_USE_STATIC_LIBS   ON)
+FIND_PACKAGE(Boost 1.65 COMPONENTS program_options filesystem system REQUIRED )
+option(Boost_USE_STATIC_LIBS "Use static libraries of Boost" OFF)
+
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIRS} )
+
+add_definitions(-D BOOST_ALL_DYN_LINK)
+add_definitions(-DBOOST_USE_WINAPI_VERSION=0x0601) # otherwise we get boost log linker errors
 
 ###### LibJPEG
 

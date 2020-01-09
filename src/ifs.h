@@ -135,6 +135,7 @@ namespace IFS
                          const std::string &header = "" )
   {
       os << header << std::endl;
+	  os << std::fixed;
       {
           typename IFS_T::IFSINDEX vindex = 0;
           for (typename IFS_T::IFSVCONTAINER::const_iterator
@@ -197,15 +198,21 @@ namespace IFS
    static bool exportOBJ( const IFS_T &ifs, const std::string &filebase, 
                           const std::string &header="")
    {
-       std::string filename = filebase;
+
+	   std::string filename = filebase;
        filename.append(".obj");
+
+	   // export matfile in the same path
        std::string matfilename = filebase;
        matfilename.append(".mtl");
+
+	   const boost::filesystem::path matfilepath(matfilename);
+
        std::string hheader = header;
        if (!ifs.facematerial.empty())
        {
            hheader.append("\n mtllib ");
-           hheader.append(matfilename);
+           hheader.append(matfilepath.filename().string());
            hheader.append("\n");
        }
        std::ofstream os(filename);
@@ -317,6 +324,7 @@ namespace IFS
                            parser >> vindex;
                            face.push_back(vindex - 1);    // first element starts with 1!
                        }
+					   if (facevertex.size() > 1)
                        {
                            if (!facevertex[1].empty()) {
                                std::istringstream parser(facevertex[1]);    // index 1:texcoord
@@ -325,6 +333,7 @@ namespace IFS
                                facetc.push_back(tcindex - 1);    // first element starts with 1!
                            }
                        }
+					   if(facevertex.size() > 2)
                        {
                            if (!facevertex[2].empty()) {
                                std::istringstream parser(facevertex[2]);    // index 1:normal
