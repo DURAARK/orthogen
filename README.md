@@ -97,27 +97,30 @@ Example config:
 ## Command line arguments ##
 
 ```
-OrthoGen orthographic image generator for DuraArk
+OrthoGen orthographic image generator 0.10.3
 developed by Fraunhofer Austria Research GmbH
-commandline options:
+--help for options.
 
+commandline options:
   --help                show this help message
-  --e57metadata arg     e57 metadata json [.json]
-  --configjson arg      json file with pose information
-  --geometry arg        input geometry [.obj]
+  --e57metadata arg     e57 metadata json [.json] MANDATORY(A)
+  --configjson arg      json file with pose information MANDATORY(C)
+  --geometry arg        input geometry [.obj] (relative to config)
   --align arg           align executable
   --wnddist arg         distance clustering window size [0.1]
   --wndnorm arg         normal clustering window size [0.3]
   --exgeom arg          export textured geometry as .obj [0]/1
-  --exortho arg         export orthophotos as .jpg 0/[1]
-  --exsphere arg        export textured panoramic sphere(s) as .obj [0]/1
-  --exquad arg          export textured quads as .obj [0]/1
+  --exortho arg         export textured geometry as .obj 0/[1]
+  --exsphere arg        export textured panoramic sphere as .obj [0]/1
+  --exquad arg          export textured panoramic sphere as .obj [0]/1
+  --exroombb arg        export room bounding boxes as .obj [0]/1
   --excluster arg       export triangle clusters as .obj [0]/1
   --output arg          output filename [.jpg] will be appended
   --panopath arg        path to pano images
   --resolution arg      resolution [mm/pixel]
   --scan arg            if specified, only this scan will be considered
-  --scanoffset arg      translation offset
+  --scanoffset arg      scan translation offset
+  --geometryoffset arg  geometry translation offset
   --verbose arg         print out verbose messages
   --sphereradius arg    exported panoramic sphere radius [1.0]
 ```
