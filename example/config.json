@@ -1,0 +1,24 @@
+{  
+   "id":"{synthetic-example}",
+   "file":"cubemap",
+   "scans":[  
+      {  
+         "name":"panorama",
+         "pos":{  
+            "x": 0, "y": 0, "z": 0
+         },
+         "rot":{  
+            "x":0,
+            "y":0,
+            "z":0,
+            "w":1
+         },
+         "bounds":{  
+            "elevation_minimum":-1.57079632679,
+            "elevation_maximum":1.57079632679,
+            "azimuth_start":6.28318530718,
+            "azimuth_end":0
+         }
+      }
+   ]
+}
